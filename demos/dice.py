@@ -20,7 +20,7 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from odysseus import create_provider, run_loop  # noqa: E402
+from odysseus_v2 import create_provider, run_loop  # noqa: E402
 
 
 class RollDice:

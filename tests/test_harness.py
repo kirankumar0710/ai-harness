@@ -19,8 +19,8 @@ from unittest import mock
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from odysseus import run_loop  # noqa: E402
-from odysseus.providers import (  # noqa: E402
+from odysseus_v2 import run_loop  # noqa: E402
+from odysseus_v2.providers import (  # noqa: E402
     AnthropicConfig,
     AnthropicProvider,
     Completion,
@@ -34,7 +34,7 @@ from odysseus.providers import (  # noqa: E402
     ProviderError,
     create_provider,
 )
-from odysseus.providers import base  # noqa: E402
+from odysseus_v2.providers import base  # noqa: E402
 
 DICE_SCHEMA = {"name": "roll_dice", "description": "Roll dice",
                "parameters": {"type": "object",
