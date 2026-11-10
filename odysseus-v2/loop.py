@@ -1,4 +1,4 @@
-"""Day 1 - The agentic loop.
+"""The agentic loop.
 
 The heart of every harness is small:
 
@@ -38,7 +38,7 @@ WRAP_UP_PROMPT = (
 
 
 class Tool(Protocol):
-    """What the loop needs from a tool. Day 2 provides real ones."""
+    """What the loop needs from a tool."""
 
     name: str
     spec: Mapping[str, Any]          # {"schema": {name, description, ...}}
@@ -70,8 +70,8 @@ def run_loop(
 
     Events: ``"assistant"`` after each model reply (payload: the
     ``Completion``), ``"tool_start"`` and ``"tool_end"`` around each tool.
-    ``before_tool`` is the permission gate (Day 2); ``before_turn`` may
-    rewrite the history before each call (Day 3 compaction).
+    ``before_tool`` is the permission gate; ``before_turn`` may
+    rewrite the history before each call.
     """
     schemas = [tool.spec["schema"] for tool in tools.values()]
 

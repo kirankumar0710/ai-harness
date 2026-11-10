@@ -1,12 +1,12 @@
-"""Day 1 demo: a bare harness with one harmless tool.
+"""Demo: a bare harness with one harmless tool.
 
     export ODYSSEUS_PROVIDER=gemini        # or openai / openrouter / anthropic
     export GEMINI_API_KEY=...              # the matching vendor key
-    python demos/day1_dice.py
+    python demos/dice.py
 
 Expected transcript: user -> assistant (tool call) -> tool result ->
 assistant answer. Then a request the dice tool cannot help with, which
-the model can only describe: judgment without hands, until Day 2.
+the model can only describe: judgment without hands.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Day 1 - The provider abstraction: one narrow doorway to any model.
+"""The provider abstraction: one narrow doorway to any model.
 
 A harness talks to a model through a single call: send the conversation,
 get back text and/or requests to call tools. This module defines that

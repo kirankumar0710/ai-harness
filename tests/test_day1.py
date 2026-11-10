@@ -1,4 +1,4 @@
-"""Offline tests for Day 1: the loop and every provider's wire format.
+"""Offline tests: the loop and every provider's wire format.
 
 No network and no API key: providers get a fake transport that records
 the request and returns a canned vendor reply.
