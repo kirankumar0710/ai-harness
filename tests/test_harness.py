@@ -209,6 +209,12 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             create_provider("no-such-vendor")
 
+    def test_no_provider_selected_is_an_error_not_a_default(self):
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"},
+                             clear=True):
+            with self.assertRaises(ConfigError):
+                create_provider()
+
     def test_defaults_come_from_the_packaged_ini(self):
         defaults = base.load_vendor_defaults("gemini")
         self.assertEqual(defaults.api_key_env,

@@ -21,6 +21,7 @@ from typing import Any
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from odysseus_v2 import create_provider, run_loop  # noqa: E402
+from odysseus_v2.providers import ConfigError  # noqa: E402
 
 
 class RollDice:
@@ -56,7 +57,11 @@ def print_event(kind: str, payload: Mapping[str, Any]) -> None:
 
 
 def main() -> int:
-    provider = create_provider()
+    try:
+        provider = create_provider()
+    except ConfigError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     print(f"provider: {provider.config.PROVIDER_NAME} - {provider.model}\n")
     tools = {"roll_dice": RollDice()}
     system = "You are a helpful agent. Use tools when they help."

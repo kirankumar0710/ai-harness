@@ -7,8 +7,9 @@
     provider = create_provider("openai", model="gpt-...",
                                base_url="http://localhost:8000/v1")
 
-The vendor comes from the ``name`` argument, else ``ODYSSEUS_PROVIDER``,
-else Gemini. Adding a vendor means one new module and one line in
+The vendor comes from the ``name`` argument, else ``ODYSSEUS_PROVIDER``;
+if neither is set, ``ConfigError`` is raised (there is no default
+vendor). Adding a vendor means one new module and one line in
 ``PROVIDERS``; nothing else in the harness changes.
 """
 
@@ -36,8 +37,6 @@ from .openai_compatible import (
     OpenRouterProvider,
 )
 
-DEFAULT_PROVIDER = "gemini"
-
 PROVIDERS: dict[str, type[Provider]] = {
     "gemini": GeminiProvider,
     "openai": OpenAIProvider,
@@ -52,12 +51,15 @@ def create_provider(name: str | None = None, **overrides: Any) -> Provider:
     ``overrides`` are any ``ProviderConfig`` fields (``api_key``,
     ``model``, ``base_url``, ``temperature``, ...).
     """
-    name = (name or os.environ.get("ODYSSEUS_PROVIDER")
-            or DEFAULT_PROVIDER).lower()
+    known = ", ".join(sorted(PROVIDERS))
+    name = (name or os.environ.get("ODYSSEUS_PROVIDER") or "").strip().lower()
+    if not name:
+        raise ConfigError(
+            "No provider selected: pass a name to create_provider() or set "
+            f"ODYSSEUS_PROVIDER to one of: {known}")
     try:
         provider_class = PROVIDERS[name]
     except KeyError:
-        known = ", ".join(sorted(PROVIDERS))
         raise ConfigError(
             f"Unknown provider {name!r}; choose one of: {known}") from None
     config = provider_class.config_class.from_env(**overrides)
