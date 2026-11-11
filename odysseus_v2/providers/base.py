@@ -5,8 +5,9 @@ get back text and/or requests to call tools. This module defines that
 contract once, independent of any vendor:
 
 * ``ProviderConfig`` - the settings every vendor needs (API key, base
-  URL, model) plus shared tuning knobs. Each vendor subclasses it to
-  supply its own defaults and environment variable names.
+  URL, model) plus shared tuning knobs. Each vendor subclasses it; its
+  default base URL, model and key variable names come from that
+  vendor's section in ``providers.ini``.
 * ``Provider`` - an abstract base class. ``complete()`` is a template
   method: subclasses only translate the neutral request into their wire
   format and parse the reply back. Authentication headers, retries and
@@ -25,6 +26,7 @@ Design rules:
 
 from __future__ import annotations
 
+import configparser
 import json
 import os
 import random
@@ -35,6 +37,7 @@ import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, ClassVar, Literal, TypedDict
 
 # --------------------------------------------------------------------------
@@ -127,6 +130,48 @@ class ProviderError(RuntimeError):
 # --------------------------------------------------------------------------
 
 
+DEFAULTS_FILE = Path(__file__).with_name("providers.ini")
+CONFIG_PATH_ENV_VAR = "ODYSSEUS_CONFIG"
+
+
+@dataclass(frozen=True)
+class VendorDefaults:
+    """One vendor's section of the ini files."""
+
+    base_url: str
+    model: str
+    api_key_env: tuple[str, ...]
+
+
+def load_vendor_defaults(provider_name: str) -> VendorDefaults:
+    """Read a vendor's defaults from the ini files.
+
+    The packaged ``providers.ini`` is read first; the file named by
+    ``ODYSSEUS_CONFIG``, if set, is layered on top and overrides it key
+    by key. The files are re-read on every call, so edits take effect
+    without restarting.
+    """
+    parser = configparser.ConfigParser()
+    if not parser.read(DEFAULTS_FILE, encoding="utf-8"):
+        raise ConfigError(f"Missing provider defaults file: {DEFAULTS_FILE}")
+    user_file = os.environ.get(CONFIG_PATH_ENV_VAR)
+    if user_file and not parser.read(user_file, encoding="utf-8"):
+        raise ConfigError(
+            f"{CONFIG_PATH_ENV_VAR} points to an unreadable file: "
+            f"{user_file}")
+    if not parser.has_section(provider_name):
+        raise ConfigError(
+            f"No [{provider_name}] section in the provider config files")
+    section = parser[provider_name]
+    return VendorDefaults(
+        base_url=section.get("base_url", "").strip(),
+        model=section.get("model", "").strip(),
+        api_key_env=tuple(
+            name.strip() for name in section.get("api_key_env", "").split(",")
+            if name.strip()),
+    )
+
+
 @dataclass(frozen=True)
 class ProviderConfig:
     """Settings shared by every vendor.
@@ -144,10 +189,9 @@ class ProviderConfig:
     max_output_tokens: int | None = None
     extra_headers: dict[str, str] = field(default_factory=dict)
 
+    # The vendor's section name in providers.ini; everything else about
+    # the vendor's defaults lives in that file, not in code.
     PROVIDER_NAME: ClassVar[str] = ""
-    DEFAULT_BASE_URL: ClassVar[str] = ""
-    DEFAULT_MODEL: ClassVar[str] = ""
-    API_KEY_ENV_VARS: ClassVar[tuple[str, ...]] = ()
 
     def __post_init__(self) -> None:
         # Normalise once so subclasses can join paths with a single "/".
@@ -168,22 +212,24 @@ class ProviderConfig:
           2. the vendor's own key variables, e.g. ``GEMINI_API_KEY``
           3. ``ODYSSEUS_API_KEY`` / ``ODYSSEUS_MODEL`` /
              ``ODYSSEUS_BASE_URL``
-          4. the class defaults
+          4. the vendor's section in the ini files (see
+             ``load_vendor_defaults``)
         """
+        defaults = load_vendor_defaults(cls.PROVIDER_NAME)
         api_key = next(
-            (os.environ[name] for name in cls.API_KEY_ENV_VARS
+            (os.environ[name] for name in defaults.api_key_env
              if os.environ.get(name)),
             os.environ.get("ODYSSEUS_API_KEY", ""),
         )
         values: dict[str, Any] = {
             "api_key": api_key,
-            "model": os.environ.get("ODYSSEUS_MODEL") or cls.DEFAULT_MODEL,
+            "model": os.environ.get("ODYSSEUS_MODEL") or defaults.model,
             "base_url": (os.environ.get("ODYSSEUS_BASE_URL")
-                         or cls.DEFAULT_BASE_URL),
+                         or defaults.base_url),
         }
         values.update({k: v for k, v in overrides.items() if v is not None})
         if not values["api_key"]:
-            names = ", ".join((*cls.API_KEY_ENV_VARS, "ODYSSEUS_API_KEY"))
+            names = ", ".join((*defaults.api_key_env, "ODYSSEUS_API_KEY"))
             raise ConfigError(
                 f"No API key for {cls.PROVIDER_NAME}: set one of {names}")
         return cls(**values)

@@ -32,10 +32,7 @@ class AnthropicConfig(ProviderConfig):
     max_output_tokens: int | None = 8192
     anthropic_version: str = "2023-06-01"
 
-    PROVIDER_NAME = "anthropic"
-    DEFAULT_BASE_URL = "https://api.anthropic.com/v1"
-    DEFAULT_MODEL = "claude-sonnet-5-5"
-    API_KEY_ENV_VARS = ("ANTHROPIC_API_KEY",)
+    PROVIDER_NAME = "anthropic"   # defaults: [anthropic] in providers.ini
 
 
 class AnthropicProvider(Provider):

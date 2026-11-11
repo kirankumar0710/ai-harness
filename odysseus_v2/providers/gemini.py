@@ -38,10 +38,7 @@ class GeminiConfig(ProviderConfig):
     the default of 1.0 for Gemini 3, and lower values can cause looping.
     """
 
-    PROVIDER_NAME = "gemini"
-    DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-    DEFAULT_MODEL = "gemini-3.1-pro-preview"
-    API_KEY_ENV_VARS = ("GEMINI_API_KEY", "GOOGLE_API_KEY")
+    PROVIDER_NAME = "gemini"   # defaults: [gemini] in providers.ini
 
 
 class GeminiProvider(Provider):

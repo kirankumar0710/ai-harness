@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import os
 import sys
+import tempfile
 import unittest
 import urllib.error
 from typing import Any
@@ -207,6 +208,37 @@ class ConfigTests(unittest.TestCase):
             self.assertIsInstance(create_provider(), AnthropicProvider)
         with self.assertRaises(ConfigError):
             create_provider("no-such-vendor")
+
+    def test_defaults_come_from_the_packaged_ini(self):
+        defaults = base.load_vendor_defaults("gemini")
+        self.assertEqual(defaults.api_key_env,
+                         ("GEMINI_API_KEY", "GOOGLE_API_KEY"))
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"},
+                             clear=True):
+            config = GeminiConfig.from_env()
+        self.assertEqual(config.model, defaults.model)
+        self.assertEqual(config.base_url, defaults.base_url)
+
+    def test_user_ini_overrides_packaged_defaults_key_by_key(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".ini",
+                                         delete=False) as handle:
+            handle.write("[gemini]\nmodel = my-model\n"
+                         "api_key_env = MY_KEY\n")
+        self.addCleanup(os.unlink, handle.name)
+        env = {"ODYSSEUS_CONFIG": handle.name, "MY_KEY": "k"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            config = GeminiConfig.from_env()
+        self.assertEqual(config.model, "my-model")
+        self.assertEqual(config.api_key, "k")
+        self.assertEqual(config.base_url,   # untouched key: packaged value
+                         base.load_vendor_defaults("gemini").base_url)
+
+    def test_unreadable_user_ini_is_a_clear_error(self):
+        env = {"ODYSSEUS_CONFIG": "/no/such/file.ini",
+               "GEMINI_API_KEY": "k"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            with self.assertRaises(ConfigError):
+                GeminiConfig.from_env()
 
     def test_provider_rejects_the_wrong_config_class(self):
         with self.assertRaises(ConfigError):

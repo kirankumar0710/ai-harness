@@ -41,10 +41,7 @@ class OpenAIConfig(ProviderConfig):
 
     max_tokens_field: str = "max_completion_tokens"
 
-    PROVIDER_NAME = "openai"
-    DEFAULT_BASE_URL = "https://api.openai.com/v1"
-    DEFAULT_MODEL = ""
-    API_KEY_ENV_VARS = ("OPENAI_API_KEY",)
+    PROVIDER_NAME = "openai"   # defaults: [openai] in providers.ini
 
 
 @dataclass(frozen=True)
@@ -56,10 +53,7 @@ class OpenRouterConfig(OpenAIConfig):
     extra_headers: dict[str, str] = field(
         default_factory=lambda: {"X-Title": "Odysseus"})
 
-    PROVIDER_NAME = "openrouter"
-    DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-    DEFAULT_MODEL = "google/gemini-3.1-pro-preview"
-    API_KEY_ENV_VARS = ("OPENROUTER_API_KEY",)
+    PROVIDER_NAME = "openrouter"   # defaults: [openrouter] in providers.ini
 
 
 class OpenAICompatibleProvider(Provider):
