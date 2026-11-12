@@ -1,8 +1,30 @@
 """Demo: a bare harness with one harmless tool.
 
-    export ODYSSEUS_PROVIDER=gemini        # or openai / openrouter / anthropic
-    export GEMINI_API_KEY=...              # the matching vendor key
-    python demos/dice.py
+    0. Install the package once, from the repo root:
+         pip install -e .
+
+    1. Choose a provider (required, there is no default):
+         export ODYSSEUS_PROVIDER=gemini   # or openai / openrouter / anthropic
+
+    2. Export the API key for that provider. The variable name to use is
+       the ``api_key_env`` entry of the provider's section in
+       odysseus_v2/providers/providers.ini:
+         gemini      GEMINI_API_KEY (or GOOGLE_API_KEY)
+         openai      OPENAI_API_KEY
+         openrouter  OPENROUTER_API_KEY
+         anthropic   ANTHROPIC_API_KEY
+       e.g.  export GEMINI_API_KEY=...
+       ODYSSEUS_API_KEY works for any provider as a fallback.
+
+    3. Run:
+         python demos/dice/dice.py
+
+See dice.html next to this file for the goal, a sample run and an
+analysis of its output.
+
+Base URL and model come from providers.ini; set ODYSSEUS_CONFIG to your
+own .ini to override them (openai has no default model). If the provider
+or its key is missing, the demo prints which variable to set and exits 1.
 
 Expected transcript: user -> assistant (tool call) -> tool result ->
 assistant answer. Then a request the dice tool cannot help with, which
@@ -12,16 +34,13 @@ the model can only describe: judgment without hands.
 from __future__ import annotations
 
 import json
-import os
 import random
 import sys
 from collections.abc import Mapping
 from typing import Any
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from odysseus_v2 import create_provider, run_loop  # noqa: E402
-from odysseus_v2.providers import ConfigError  # noqa: E402
+from odysseus_v2 import create_provider, run_loop
+from odysseus_v2.providers import ConfigError
 
 
 class RollDice:

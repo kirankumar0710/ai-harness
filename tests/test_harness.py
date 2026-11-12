@@ -10,18 +10,14 @@ from __future__ import annotations
 
 import io
 import os
-import sys
 import tempfile
 import unittest
 import urllib.error
 from typing import Any
 from unittest import mock
 
-sys.path.insert(
-    0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from odysseus_v2 import run_loop  # noqa: E402
-from odysseus_v2.providers import (  # noqa: E402
+from odysseus_v2 import run_loop
+from odysseus_v2.providers import (
     AnthropicConfig,
     AnthropicProvider,
     Completion,
@@ -35,7 +31,7 @@ from odysseus_v2.providers import (  # noqa: E402
     ProviderError,
     create_provider,
 )
-from odysseus_v2.providers import base  # noqa: E402
+from odysseus_v2.providers import base
 
 DICE_SCHEMA = {"name": "roll_dice", "description": "Roll dice",
                "parameters": {"type": "object",

@@ -2,3 +2,9 @@ __pycache__/
 *.pyc
 .env
 .odysseus/
+
+# packaging
+*.egg-info/
+build/
+dist/
+.venv/
