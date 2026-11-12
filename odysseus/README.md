@@ -32,10 +32,13 @@ point and modified to:
 
 ```bash
 git clone https://github.com/kirankumar0710/ai-harness.git
-cd ai-harness/odysseus
+cd ai-harness
+cd odysseus          # this project's folder: pyproject.toml is here
 ```
 
-All the commands below are run from the `odysseus` folder.
+**All the commands below are run from the `odysseus` folder**, not from the
+`ai-harness` repo root. Running them from the root fails, for example with
+`pip install -e .`: *does not appear to be a Python project*.
 
 ### 2. Create a virtual environment (recommended)
 
@@ -49,8 +52,11 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 ### 3. Install the package
 
 ```bash
+cd odysseus          # skip if you are already in the odysseus folder
 pip install -e .
 ```
+
+From the `ai-harness` root, `pip install -e odysseus` does the same thing.
 
 `-e` (editable) links the install to your checkout, so code changes take
 effect without reinstalling. There are no third-party dependencies.
