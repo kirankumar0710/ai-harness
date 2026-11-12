@@ -154,8 +154,10 @@
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="output">Sample output</h2>
-  <p>A run with <code>anthropic</code> / <code>claude-sonnet-5-5</code>. The second answer
-     was about 4,500 tokens of HTML and notes; it is shortened here.</p>
+  <p>Runs with <code>anthropic</code> / <code>claude-sonnet-5-5</code>. The landing-page
+     reply shown is from a later run than the dice task; the model writes a different page
+     each time. Its HTML (about 5,400 tokens with the notes) is shortened here; the summary
+     the model wrote after it is shown in full.</p>
 <pre><code>$ python3 demos/dice/dice.py
 provider: anthropic - claude-sonnet-5-5
 
@@ -168,21 +170,35 @@ assistant: The dice came up 6, 5 and 5, so the total is 16. That beats 10 by 6.
 (4 messages in the array)
 
 user: Build a landing page for a coffee shop.
-assistant: # Coffee Shop Landing Page
-
-This is a single-file landing page. Save it as `index.html` and open it in a browser. ...
+assistant: <span class="dim">... a short introduction, then the page as one HTML file ...</span>
 
 ```html
 &lt;!DOCTYPE html&gt;
 &lt;html lang="en"&gt;
-<span class="dim">  ... about 230 lines of HTML and CSS: nav, hero, story, menu,
-      testimonials, opening hours, newsletter form, footer ...</span>
+<span class="dim">  ... HTML, CSS and a little JavaScript: nav, hero, "Why Us" cards,
+      menu, story, testimonials, visit and contact form, footer ...</span>
 &lt;/html&gt;
 ```
 
 ## What's included
-<span class="dim">  ... feature list, customisation tips, offer of further changes ...</span>
-  [tokens in 414, out 4533]
+- **Sticky nav** with smooth-scroll anchors
+- **Hero** with a background photo and two calls to action
+- **"Why Us"** feature cards
+- **Menu** section with prices
+- **Our Story** with an image and text
+- **Testimonials**
+- **Visit section** with hours, address, and a contact form (the form shows a confirmation message but doesn't send anywhere yet)
+- **Responsive layout** that works on mobile
+- **Footer** with an auto-updating year
+
+## Customizing
+- **Name and content:** replace "Ember &amp; Bean", the address, the menu items, and the quotes with your own.
+- **Colors:** edit the CSS variables in `:root` at the top of the stylesheet.
+- **Images:** the photos load from Unsplash. Swap in your own for the best results.
+- **Form:** connect it to a service like Formspree or Netlify Forms, or to your own backend.
+
+I can add an online ordering section, a Google Maps embed, a gallery, or a dark mode if you'd like. I can also adapt it to React or Tailwind.
+  [tokens in 414, out 5454]
 (2 messages in the array)</code></pre>
 
   <!-- ------------------------------------------------------------------ -->
@@ -210,16 +226,32 @@ This is a single-file landing page. Save it as `index.html` and open it in a bro
     <li>The model has no tool to write files, so it put the whole page in its text reply.
         That is the intended <em>judgment without hands</em>: it knows what to build but
         cannot act on it.</li>
+    <li>It also knew what it could not do: it says the contact form "doesn't send anywhere
+        yet" and suggests services to connect it to, instead of claiming a working form.</li>
+    <li>The reply is not deterministic. Two runs produced different pages (one with a
+        newsletter form, one with "Why Us" cards and a contact form) and different lengths:
+        4,533 and 5,454 output tokens.</li>
+    <li>The closing offer ("I can also adapt it to React or Tailwind") cannot be taken up
+        here. The demo ends the conversation after each task, so there is no turn in which a
+        user could reply. The model offers because that is what it does in a chat; a
+        harness that wants follow-ups has to keep the <code>messages</code> list and call
+        <code>run_loop</code> again with the next user message.</li>
   </ul>
 
   <h3>Something to watch</h3>
   <div class="callout">
-    <p style="margin-top:0"><strong>Silent truncation risk.</strong> The second reply used
-      4,533 output tokens, more than half of the default limit
-      (<code>max_output_tokens = 8192</code> for Anthropic). A longer reply would be cut off
+    <p style="margin-top:0"><strong>Silent truncation risk.</strong> The landing-page reply
+      used 5,454 output tokens, two-thirds of the default limit
+      (<code>max_output_tokens = 8192</code> for Anthropic), up from 4,533 in an earlier run.
+      Length varies from run to run, so a longer reply would eventually be cut off
       at the limit, and the harness would not notice: the providers ignore the vendor's stop
       reason (<code>stop_reason: "max_tokens"</code> for Anthropic, <code>finishReason</code>
       for Gemini, <code>finish_reason: "length"</code> for OpenAI).</p>
+    <p>The 5,454 tokens are the size of the <em>whole</em> model reply: the introduction,
+      the HTML, and the "What's included" and "Customizing" notes after it. All of it counts
+      towards the limit. A reply that hits the limit loses its <em>end</em>, which here means
+      these notes or even the closing <code>&lt;/html&gt;</code> tag, leaving a page that
+      looks complete in the transcript but is broken.</p>
     <p style="margin-bottom:0">The loop would then treat the cut-off text as a finished
       answer. Fix: check the stop reason in each provider and raise an error or emit a
       warning event when output was truncated.</p>
