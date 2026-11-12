@@ -151,8 +151,9 @@ conversation.
 
 ## Architecture
 
-Odysseus has four parts. Your code only touches the first two; the provider
-hides everything vendor-specific behind one method, `complete()`.
+Odysseus has four parts. Applications use the first two; the provider hides
+everything vendor-specific behind one method, `complete()`, so the loop and
+any application built on it work unchanged with every vendor.
 
 | Part | Where | Job |
 |---|---|---|
@@ -163,8 +164,6 @@ hides everything vendor-specific behind one method, `complete()`.
 
 ```mermaid
 flowchart TB
-    app["Your code<br/>e.g. demos/dice/dice.py"]
-
     subgraph config["Configuration"]
         env["Environment variables<br/>ODYSSEUS_PROVIDER, API keys,<br/>ODYSSEUS_MODEL, ODYSSEUS_BASE_URL"]
         ini["providers.ini<br/>+ optional ODYSSEUS_CONFIG file"]
@@ -181,54 +180,32 @@ flowchart TB
     tools["Tools<br/>objects with name, spec, run()"]
     api[("Vendor API")]
 
-    app -- "step 1: create_provider(name)" --> factory
     factory -- "builds config" --> fromenv
     fromenv -- "reads" --> env
     fromenv -- "reads defaults" --> ini
-    factory -- "returns" --> provider
-    app -- "step 2: run_loop(provider, system, messages, tools)" --> loop
+    factory -- "creates" --> provider
     loop -- "complete()" --> provider
     provider -- "url, headers, body" --> transport
     transport -- "HTTPS POST" --> api
     loop -- "run(args)" --> tools
 ```
 
-### One turn of the loop
+**How the loop works.** Each turn, `run_loop()` sends the conversation to the
+provider and appends the model's reply. If the reply asks for no tools, the
+loop returns its text: the model decides when the work is done. Otherwise it
+runs each requested tool and appends one result per call, then starts the
+next turn. The rules it keeps:
 
-The loop repeats this until the model replies without asking for a tool.
-Every tool call gets exactly one result, even when it is blocked or fails,
-and a failing tool never crashes the loop.
+- Every tool call gets exactly one result, even when it is blocked by the
+  `before_tool` gate or fails.
+- A failing tool never crashes the loop: the error becomes a result the
+  model reads.
+- `max_turns` is a hard stop. When it is reached, one last call is made with
+  tools disabled, so the model reports what was done instead of stopping
+  silently.
 
-```mermaid
-sequenceDiagram
-    participant App as Your code
-    participant RL as run_loop()
-    participant P as Provider
-    participant HTTP as post_json()
-    participant API as Vendor API
-    participant Tool as Tool
-
-    App->>RL: run_loop(provider, system, messages, tools)
-    loop each turn, up to max_turns
-        RL->>P: complete(system, messages, tool schemas)
-        P->>P: _build_request(): neutral to vendor format
-        P->>HTTP: url, headers, body
-        HTTP->>API: HTTPS POST (retries 408, 429, 5xx)
-        API-->>HTTP: JSON reply
-        HTTP-->>P: dict
-        P->>P: _parse_response(): vendor format to Completion
-        P-->>RL: Completion(text, tool_calls, usage)
-        RL->>RL: append assistant message
-        alt no tool calls
-            RL-->>App: final answer text
-        else one or more tool calls
-            RL->>Tool: before_tool(call) gate, then run(args)
-            Tool-->>RL: result text (errors become results)
-            RL->>RL: append one tool message per call
-        end
-    end
-    Note over RL,P: Out of turns: one last complete() with tools disabled, for a summary
-```
+Each demo's page in [`demos/`](demos/index.html) traces a concrete run
+through these parts.
 
 ## Class layout
 

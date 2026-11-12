@@ -55,6 +55,8 @@
     }
     .callout strong { color: var(--warn); }
     ol li, ul li { margin-bottom: .35rem; }
+    .diagram { overflow-x: auto; margin: 1rem 0; }
+    pre.mermaid { background: var(--surface); text-align: center; }
   </style>
 </head>
 <body>
@@ -117,6 +119,48 @@
       <tr><td><code>(N messages in the array)</code></td><td>size of the conversation when the task ended</td></tr>
     </table>
   </div>
+
+  <h3>Sequence: task 1 with Anthropic</h3>
+  <p>How the dice task travels through the harness (see the
+     <a href="../../README.md#architecture">architecture in the README</a> for the parts).
+     It takes two turns: in the first the model asks for the tool, in the second it answers.
+     The message count after each step is shown in brackets.</p>
+  <div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+    participant D as dice.py
+    participant RL as run_loop()
+    participant P as AnthropicProvider
+    participant API as Anthropic API
+    participant T as roll_dice
+
+    D->>RL: run_loop(provider, system, messages, tools)
+    Note right of D: messages = [user: Roll 3 dice...]  [1]
+
+    Note over RL,T: Turn 1: the model asks for the tool
+    RL->>P: complete(system, messages, roll_dice schema)
+    P->>API: POST /v1/messages
+    API-->>P: tool_use roll_dice, count 3
+    P-->>RL: Completion with 1 tool call
+    RL->>RL: append assistant message  [2]
+    RL->>T: run(count=3)
+    T-->>RL: [6, 5, 5]
+    RL->>RL: append tool result, quoting the call id  [3]
+
+    Note over RL,T: Turn 2: the model answers
+    RL->>P: complete(system, messages, roll_dice schema)
+    P->>API: POST /v1/messages, history includes tool_use and tool_result
+    API-->>P: text: the total is 16, which beats 10
+    P-->>RL: Completion with no tool calls
+    RL->>RL: append assistant message  [4]
+    RL-->>D: final answer text
+</pre>
+  </div>
+  <p>Task 2 (the landing page) is a single turn: the model replies with text and no tool
+     call, so <code>run_loop()</code> returns after the first <code>complete()</code>
+     with 2 messages.</p>
+  <noscript><p class="dim">The diagram above needs JavaScript and an internet connection
+     to draw; without them its source text is shown.</p></noscript>
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="run">How to run</h2>
@@ -269,5 +313,13 @@ I can add an online ordering section, a Google Maps embed, a gallery, or a dark 
         passed off as complete.</li>
   </ul>
 </main>
+<!-- Draws the sequence diagram. Pinned version; if offline, the source text stays visible. -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) {
+    const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "default" });
+  }
+</script>
 </body>
 </html>
