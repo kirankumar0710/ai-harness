@@ -149,6 +149,246 @@ A tool is any object with a `name`, a `spec` holding its JSON schema, and a
 complete example. `messages` is updated in place and holds the whole
 conversation.
 
+## Architecture
+
+Odysseus has four parts. Your code only touches the first two; the provider
+hides everything vendor-specific behind one method, `complete()`.
+
+| Part | Where | Job |
+|---|---|---|
+| **Factory** | `create_provider()` in `providers/__init__.py` | picks the vendor and builds its provider with a resolved config |
+| **Agent loop** | `run_loop()` in `loop.py` | calls the model, runs the tools it asks for, repeats until it is done |
+| **Provider** | one subclass of `Provider` per vendor | converts the neutral conversation to the vendor's format and back |
+| **Transport** | `post_json()` in `providers/base.py` | sends the HTTPS request; retries rate limits, server and network errors |
+
+```mermaid
+flowchart TB
+    app["Your code<br/>e.g. demos/dice/dice.py"]
+
+    subgraph config["Configuration"]
+        env["Environment variables<br/>ODYSSEUS_PROVIDER, API keys,<br/>ODYSSEUS_MODEL, ODYSSEUS_BASE_URL"]
+        ini["providers.ini<br/>+ optional ODYSSEUS_CONFIG file"]
+    end
+
+    subgraph odysseus["odysseus_v2"]
+        factory["create_provider()"]
+        fromenv["e.g. GeminiConfig.from_env()"]
+        loop["run_loop()"]
+        provider["Provider<br/>Gemini / OpenAI / OpenRouter / Anthropic"]
+        transport["post_json()<br/>retries + backoff"]
+    end
+
+    tools["Tools<br/>objects with name, spec, run()"]
+    api[("Vendor API")]
+
+    app -- "step 1: create_provider(name)" --> factory
+    factory -- "builds config" --> fromenv
+    fromenv -- "reads" --> env
+    fromenv -- "reads defaults" --> ini
+    factory -- "returns" --> provider
+    app -- "step 2: run_loop(provider, system, messages, tools)" --> loop
+    loop -- "complete()" --> provider
+    provider -- "url, headers, body" --> transport
+    transport -- "HTTPS POST" --> api
+    loop -- "run(args)" --> tools
+```
+
+### One turn of the loop
+
+The loop repeats this until the model replies without asking for a tool.
+Every tool call gets exactly one result, even when it is blocked or fails,
+and a failing tool never crashes the loop.
+
+```mermaid
+sequenceDiagram
+    participant App as Your code
+    participant RL as run_loop()
+    participant P as Provider
+    participant HTTP as post_json()
+    participant API as Vendor API
+    participant Tool as Tool
+
+    App->>RL: run_loop(provider, system, messages, tools)
+    loop each turn, up to max_turns
+        RL->>P: complete(system, messages, tool schemas)
+        P->>P: _build_request(): neutral to vendor format
+        P->>HTTP: url, headers, body
+        HTTP->>API: HTTPS POST (retries 408, 429, 5xx)
+        API-->>HTTP: JSON reply
+        HTTP-->>P: dict
+        P->>P: _parse_response(): vendor format to Completion
+        P-->>RL: Completion(text, tool_calls, usage)
+        RL->>RL: append assistant message
+        alt no tool calls
+            RL-->>App: final answer text
+        else one or more tool calls
+            RL->>Tool: before_tool(call) gate, then run(args)
+            Tool-->>RL: result text (errors become results)
+            RL->>RL: append one tool message per call
+        end
+    end
+    Note over RL,P: Out of turns: one last complete() with tools disabled, for a summary
+```
+
+## Class layout
+
+### Providers and configuration
+
+Each vendor has a provider class and a matching config class. The provider's
+`config_class` names its config, which `create_provider()` uses to build it.
+`create_provider()` and `run_loop()` are plain functions, not classes.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class Provider {
+        <<abstract>>
+        +config_class type$
+        +config ProviderConfig
+        +model str
+        +complete(system, messages, tools, allow_tool_calls) Completion
+        #_build_request(system, messages, tools, allow_tool_calls) tuple*
+        #_parse_response(raw) Completion*
+    }
+    class GeminiProvider {
+        +_to_wire(messages) list$
+    }
+    class AnthropicProvider {
+        +_to_wire(messages) list$
+    }
+    class OpenAICompatibleProvider {
+        +_to_wire(system, messages) list$
+    }
+    class OpenAIProvider
+    class OpenRouterProvider
+
+    Provider <|-- GeminiProvider
+    Provider <|-- AnthropicProvider
+    Provider <|-- OpenAICompatibleProvider
+    OpenAICompatibleProvider <|-- OpenAIProvider
+    OpenAICompatibleProvider <|-- OpenRouterProvider
+
+    class ProviderConfig {
+        <<frozen dataclass>>
+        +PROVIDER_NAME str$
+        +api_key str
+        +model str
+        +base_url str
+        +timeout float
+        +max_attempts int
+        +temperature float
+        +max_output_tokens int
+        +extra_headers dict
+        +from_env(overrides) ProviderConfig$
+    }
+    class GeminiConfig
+    class AnthropicConfig {
+        +max_output_tokens int = 8192
+        +anthropic_version str
+    }
+    class OpenAIConfig {
+        +max_tokens_field str
+    }
+    class OpenRouterConfig {
+        +max_tokens_field str
+        +extra_headers dict
+    }
+    class VendorDefaults {
+        <<frozen dataclass>>
+        +base_url str
+        +model str
+        +api_key_env tuple
+    }
+
+    ProviderConfig <|-- GeminiConfig
+    ProviderConfig <|-- AnthropicConfig
+    ProviderConfig <|-- OpenAIConfig
+    OpenAIConfig <|-- OpenRouterConfig
+
+    Provider o-- ProviderConfig : config
+    ProviderConfig ..> VendorDefaults : from_env() loads from providers.ini
+
+    class create_provider {
+        <<function>>
+        +create_provider(name, overrides) Provider
+    }
+    class post_json {
+        <<function>>
+        +post_json(url, body, headers, timeout, max_attempts) dict
+    }
+    create_provider ..> Provider : creates
+    create_provider ..> ProviderConfig : config_class.from_env()
+    Provider ..> post_json : sends via transport
+```
+
+| Provider | Config | Notes |
+|---|---|---|
+| `GeminiProvider` | `GeminiConfig` | echoes reasoning signatures; generates call ids when Gemini sends none |
+| `AnthropicProvider` | `AnthropicConfig` | `max_output_tokens` defaults to 8192 (Anthropic requires it) |
+| `OpenAIProvider` | `OpenAIConfig` | no default model; sends `max_completion_tokens` |
+| `OpenRouterProvider` | `OpenRouterConfig` | sends `max_tokens` and an `X-Title` header |
+
+`#` marks internal methods that subclasses implement (`*` = abstract);
+`$` marks class-level (static) members.
+
+### Messages and tools
+
+The loop and every provider exchange the same neutral types. They are plain
+dicts (`TypedDict`), so a conversation can be saved as JSON and replayed on
+any vendor.
+
+```mermaid
+classDiagram
+    direction LR
+
+    class Message {
+        <<TypedDict>>
+        +role user, assistant or tool
+        +text str
+        +tool_calls list of ToolCall
+        +tool_call_id str
+        +name str
+        +is_error bool
+    }
+    class ToolCall {
+        <<TypedDict>>
+        +id str
+        +name str
+        +args dict
+        +signature str
+        +error str
+    }
+    class Completion {
+        <<TypedDict>>
+        +text str
+        +tool_calls list of ToolCall
+        +usage Usage
+    }
+    class Usage {
+        <<TypedDict>>
+        +input int
+        +output int
+    }
+    class Tool {
+        <<Protocol>>
+        +name str
+        +spec dict
+        +run(kwargs) Any
+    }
+    class run_loop {
+        <<function>>
+        +run_loop(provider, system, messages, tools, on_event, before_tool, max_turns, before_turn) str
+    }
+
+    Message *-- ToolCall : assistant tool_calls
+    Completion *-- ToolCall
+    Completion *-- Usage
+    run_loop ..> Message : appends to messages
+    run_loop ..> Completion : receives from Provider.complete()
+    run_loop ..> Tool : run()
+```
+
 ## Project layout
 
 ```
