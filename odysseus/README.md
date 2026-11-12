@@ -387,7 +387,7 @@ odysseus
 │   ├── index.html                     list of demos
 │   └── dice                           one tool, two tasks: the loop end to end
 │       ├── dice.py                    the demo script
-│       └── dice.html                  goal, how to run, sample output, analysis
+│       └── dice_walkthrough.html      goal, how to run, sample output, analysis
 └── tests
     └── test_harness.py                offline tests (fake transport, no network)
 ```

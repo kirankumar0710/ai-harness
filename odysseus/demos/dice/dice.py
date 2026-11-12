@@ -19,7 +19,7 @@
     3. Run, from the odysseus project folder:
          python demos/dice/dice.py
 
-See dice.html next to this file for the goal, a sample run and an
+See dice_walkthrough.html next to this file for the goal, a sample run and an
 analysis of its output.
 
 Base URL and model come from providers.ini; set ODYSSEUS_CONFIG to your
