@@ -152,19 +152,25 @@ conversation.
 ## Project layout
 
 ```
-odysseus/
-  pyproject.toml               packaging (pip install -e .)
-  src/odysseus_v2/             the package (import odysseus_v2)
-    loop.py                    the agent loop
-    providers/
-      base.py                  Provider interface, config, HTTP with retries
-      providers.ini            per-vendor defaults (base URL, model, key vars)
-      anthropic.py             Anthropic Messages API
-      gemini.py                Google Gemini API
-      openai_compatible.py     OpenAI, OpenRouter and other compatible servers
-  demos/
-    index.html                 list of demos
-    dice/                      one tool, two tasks: the loop end to end
-  tests/
-    test_harness.py            offline tests (fake transport, no network)
+odysseus
+├── README.md                          this file
+├── pyproject.toml                     packaging (pip install -e .)
+├── src
+│   └── odysseus_v2                    the package (import odysseus_v2)
+│       ├── __init__.py                public API: create_provider, run_loop
+│       ├── loop.py                    the agent loop
+│       └── providers
+│           ├── __init__.py            create_provider() and the vendor registry
+│           ├── base.py                Provider interface, config, HTTP with retries
+│           ├── providers.ini          per-vendor defaults (base URL, model, key vars)
+│           ├── anthropic.py           Anthropic Messages API
+│           ├── gemini.py              Google Gemini API
+│           └── openai_compatible.py   OpenAI, OpenRouter and other compatible servers
+├── demos
+│   ├── index.html                     list of demos
+│   └── dice                           one tool, two tasks: the loop end to end
+│       ├── dice.py                    the demo script
+│       └── dice.html                  goal, how to run, sample output, analysis
+└── tests
+    └── test_harness.py                offline tests (fake transport, no network)
 ```
