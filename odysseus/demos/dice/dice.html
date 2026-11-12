@@ -121,7 +121,7 @@
   <!-- ------------------------------------------------------------------ -->
   <h2 id="run">How to run</h2>
   <h3>0. Install the package (once)</h3>
-  <p>From the repo root. <code>-e</code> (editable) links the install to your checkout,
+  <p>From the <code>odysseus</code> project folder (<code>cd ai-harness/odysseus</code>). <code>-e</code> (editable) links the install to your checkout,
      so code changes take effect without reinstalling.</p>
 <pre><code>pip install -e .</code></pre>
 
@@ -131,7 +131,7 @@
 
   <h3>2. Export that provider's API key</h3>
   <p>The variable name is the <code>api_key_env</code> entry for the provider in
-     <code>odysseus_v2/providers/providers.ini</code>. <code>ODYSSEUS_API_KEY</code> works for
+     <code>src/odysseus_v2/providers/providers.ini</code>. <code>ODYSSEUS_API_KEY</code> works for
      any provider as a fallback.</p>
   <div class="table-wrap">
     <table>
@@ -144,7 +144,7 @@
   </div>
 <pre><code>export ANTHROPIC_API_KEY=...</code></pre>
 
-  <h3>3. Run</h3>
+  <h3>3. Run, from the <code>odysseus</code> folder</h3>
 <pre><code>python3 demos/dice/dice.py</code></pre>
   <p>The base URL and model come from <code>providers.ini</code>. To use different ones,
      point <code>ODYSSEUS_CONFIG</code> at your own <code>.ini</code> file, or set

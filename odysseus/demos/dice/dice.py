@@ -1,6 +1,6 @@
 """Demo: a bare harness with one harmless tool.
 
-    0. Install the package once, from the repo root:
+    0. Install the package once, from the odysseus project folder:
          pip install -e .
 
     1. Choose a provider (required, there is no default):
@@ -8,7 +8,7 @@
 
     2. Export the API key for that provider. The variable name to use is
        the ``api_key_env`` entry of the provider's section in
-       odysseus_v2/providers/providers.ini:
+       src/odysseus_v2/providers/providers.ini:
          gemini      GEMINI_API_KEY (or GOOGLE_API_KEY)
          openai      OPENAI_API_KEY
          openrouter  OPENROUTER_API_KEY
@@ -16,7 +16,7 @@
        e.g.  export GEMINI_API_KEY=...
        ODYSSEUS_API_KEY works for any provider as a fallback.
 
-    3. Run:
+    3. Run, from the odysseus project folder:
          python demos/dice/dice.py
 
 See dice.html next to this file for the goal, a sample run and an
