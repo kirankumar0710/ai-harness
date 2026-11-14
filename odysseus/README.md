@@ -149,6 +149,38 @@ A tool is any object with a `name`, a `spec` holding its JSON schema, and a
 complete example. `messages` is updated in place and holds the whole
 conversation.
 
+## Project layout
+
+```
+odysseus
+├── README.md                          this file
+├── pyproject.toml                     packaging (pip install -e .)
+├── src
+│   └── odysseus_v2                    the package (import odysseus_v2)
+│       ├── __init__.py                public API: create_provider, run_loop
+│       ├── loop.py                    the agent loop
+│       ├── tools.py                   @tool decorator, six core tools, path jail
+│       ├── security.py                permission gate: deny rules, modes, approver
+│       └── providers
+│           ├── __init__.py            create_provider() and the vendor registry
+│           ├── base.py                Provider interface, config, HTTP with retries
+│           ├── providers.ini          per-vendor defaults (base URL, model, key vars)
+│           ├── anthropic.py           Anthropic Messages API
+│           ├── gemini.py              Google Gemini API
+│           └── openai_compatible.py   OpenAI, OpenRouter and other compatible servers
+├── demos
+│   ├── index.html                     list of demos
+│   ├── dice                           one tool, two tasks: the loop end to end
+│   │   ├── dice.py                    the demo script
+│   │   └── dice_walkthrough.html      goal, how to run, sample output, analysis
+│   └── gate                           six core tools through every permission mode
+│       ├── gate.py                    the demo script (--offline needs no API key)
+│       └── gate_walkthrough.html      goal, how to run, sample output, analysis
+└── tests
+    ├── test_harness.py                offline tests (fake transport, no network)
+    └── test_tools_security.py         tool contracts, path jail, permission gate
+```
+
 ## Architecture
 
 Odysseus has four parts. Applications use the first two; the provider hides
@@ -364,36 +396,4 @@ classDiagram
     run_loop ..> Message : appends to messages
     run_loop ..> Completion : receives from Provider.complete()
     run_loop ..> Tool : run()
-```
-
-## Project layout
-
-```
-odysseus
-├── README.md                          this file
-├── pyproject.toml                     packaging (pip install -e .)
-├── src
-│   └── odysseus_v2                    the package (import odysseus_v2)
-│       ├── __init__.py                public API: create_provider, run_loop
-│       ├── loop.py                    the agent loop
-│       ├── tools.py                   @tool decorator, six core tools, path jail
-│       ├── security.py                permission gate: deny rules, modes, approver
-│       └── providers
-│           ├── __init__.py            create_provider() and the vendor registry
-│           ├── base.py                Provider interface, config, HTTP with retries
-│           ├── providers.ini          per-vendor defaults (base URL, model, key vars)
-│           ├── anthropic.py           Anthropic Messages API
-│           ├── gemini.py              Google Gemini API
-│           └── openai_compatible.py   OpenAI, OpenRouter and other compatible servers
-├── demos
-│   ├── index.html                     list of demos
-│   ├── dice                           one tool, two tasks: the loop end to end
-│   │   ├── dice.py                    the demo script
-│   │   └── dice_walkthrough.html      goal, how to run, sample output, analysis
-│   └── gate                           six core tools through every permission mode
-│       ├── gate.py                    the demo script (--offline needs no API key)
-│       └── gate_walkthrough.html      goal, how to run, sample output, analysis
-└── tests
-    ├── test_harness.py                offline tests (fake transport, no network)
-    └── test_tools_security.py         tool contracts, path jail, permission gate
 ```
