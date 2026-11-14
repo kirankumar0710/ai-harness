@@ -112,6 +112,16 @@ class CoreToolTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             self.run_tool("read_file", path="escape/etc/passwd")
 
+    def test_list_files_default_includes_top_level_files(self):
+        self.run_tool("write_file", path="top.py", content="")
+        self.run_tool("write_file", path="pkg/deep/x.py", content="")
+        expected = "\n".join([os.path.join("pkg", "deep", "x.py"), "top.py"])
+        self.assertEqual(self.run_tool("list_files"), expected)
+        self.assertEqual(self.run_tool("list_files", pattern="**/*.py"),
+                         expected)
+        self.assertEqual(self.run_tool("list_files", pattern="pkg/**/*.py"),
+                         os.path.join("pkg", "deep", "x.py"))
+
     def test_list_grep_and_bash(self):
         self.run_tool("write_file", path="src/x.py", content="import os\n")
         self.assertEqual(self.run_tool("list_files", pattern="*.py"),

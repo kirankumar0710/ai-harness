@@ -180,6 +180,19 @@ def _coerce(value: Any, target: type) -> Any:
     return target(value)
 
 
+def _glob_match(rel: str, name: str, pattern: str) -> bool:
+    """Match a file against a glob, where ``**/`` may match no folders.
+
+    ``fnmatch`` treats ``**/*`` as "something, a slash, something", so on
+    its own it never matches files at the top of the tree. Trying the
+    pattern with each ``**/`` removed as well fixes that.
+    """
+    variants = {pattern, pattern.replace("/**/", "/")}
+    variants |= {v[3:] for v in variants if v.startswith("**/")}
+    return any(fnmatch.fnmatch(rel, v) or fnmatch.fnmatch(name, v)
+               for v in variants)
+
+
 # --------------------------------------------------------------------------
 # The six core tools
 # --------------------------------------------------------------------------
@@ -273,9 +286,8 @@ def core_tools(workdir: str | os.PathLike[str]) -> list[Tool]:
     @tool("List files matching a glob pattern, recursively.",
           pattern="Glob such as '**/*.py' or 'src/*' (default: everything)")
     def list_files(pattern: str = "**/*") -> str:
-        matches = [rel for rel, name in walk()
-                   if fnmatch.fnmatch(rel, pattern)
-                   or fnmatch.fnmatch(name, pattern)]
+        matches = sorted(rel for rel, name in walk()
+                         if _glob_match(rel, name, pattern))
         listing = "\n".join(matches[:MAX_LIST_ENTRIES])
         if len(matches) > MAX_LIST_ENTRIES:
             listing += f"\n... and {len(matches) - MAX_LIST_ENTRIES} more"

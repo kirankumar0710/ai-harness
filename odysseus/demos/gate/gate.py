@@ -59,7 +59,8 @@ SYSTEM = (
     "You are a careful coding agent working in a small Python project. "
     "Use the tools to inspect and change files; use python3 to run "
     "commands. If a tool call is blocked or fails, do not retry it the "
-    "same way: explain what happened and what you would need."
+    "same way: explain what happened and what you would need. Always "
+    "reply in English."
 )
 
 FIX_TASK = ("The tests in this project fail. Find the bug, fix it, and "
@@ -102,7 +103,10 @@ if __name__ == "__main__":
 '''
 
 # The demo's approver allows edits and a test run, and nothing else.
-TEST_COMMAND = re.compile(r"^\s*python3?\s+-m\s+(unittest|pytest)\b")
+# The whole command must match: no ; & | ` $ < > ( ) or newline, so a
+# test command cannot carry a second command along with it.
+TEST_COMMAND = re.compile(
+    r"\s*python3?\s+-m\s+(unittest|pytest)\b[^;&|`$<>()\n]*")
 
 
 # --------------------------------------------------------------------------
@@ -128,10 +132,11 @@ def make_sandbox() -> tuple[str, str]:
 
 def allowlist_approver(call: Mapping[str, Any], reason: str) -> bool:
     """Approve file edits and test runs; refuse every other side effect."""
-    name, args = call["name"], call["args"]
+    name = call["name"]
+    command = str(call["args"].get("command", ""))
     if name in {"write_file", "edit_file"}:
         approved, why = True, "file change inside the jail"
-    elif name == "bash" and TEST_COMMAND.match(str(args.get("command", ""))):
+    elif name == "bash" and TEST_COMMAND.fullmatch(command):
         approved, why = True, "test command"
     else:
         approved, why = False, "not on the allowlist"
