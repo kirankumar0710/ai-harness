@@ -387,9 +387,12 @@ odysseus
 │           └── openai_compatible.py   OpenAI, OpenRouter and other compatible servers
 ├── demos
 │   ├── index.html                     list of demos
-│   └── dice                           one tool, two tasks: the loop end to end
-│       ├── dice.py                    the demo script
-│       └── dice_walkthrough.html      goal, how to run, sample output, analysis
+│   ├── dice                           one tool, two tasks: the loop end to end
+│   │   ├── dice.py                    the demo script
+│   │   └── dice_walkthrough.html      goal, how to run, sample output, analysis
+│   └── gate                           six core tools through every permission mode
+│       ├── gate.py                    the demo script (--offline needs no API key)
+│       └── gate_walkthrough.html      goal, how to run, sample output, analysis
 └── tests
     ├── test_harness.py                offline tests (fake transport, no network)
     └── test_tools_security.py         tool contracts, path jail, permission gate

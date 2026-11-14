@@ -65,8 +65,21 @@
     <div class="tags"><span>tool calling</span><span>agent loop</span><span>any provider</span></div>
   </a>
 
+  <a class="demo" href="gate/gate_walkthrough.html">
+    <h2>Gate: tools behind the permission gate</h2>
+    <p>
+      Gives the model the six core tools, jailed to a throwaway project, and
+      runs it in each policy mode: read-only (the fix is blocked), safe (an
+      approver allows the edit and the test run) and yolo (deny rules and the
+      path jail still hold). It also shows where the jail stops: shell commands.
+      Runs offline with <code>--offline</code>, no API key needed.
+    </p>
+    <div class="tags"><span>tools</span><span>permission gate</span><span>path jail</span><span>runs offline</span></div>
+  </a>
+
   <footer>
-    Demos make real API calls and need a provider and an API key; the unit
+    Demos make real API calls and need a provider and an API key (except
+    <code>gate.py --offline</code>); the unit
     tests (<code>python3 -m unittest discover tests</code>) do not.
   </footer>
 </main>
