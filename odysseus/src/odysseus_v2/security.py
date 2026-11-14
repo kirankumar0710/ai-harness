@@ -123,8 +123,6 @@ class Policy:
             return f"approval failed: {type(error).__name__}: {error}"
         return None if approved else "not approved by user"
 
-    __call__ = check
-
     def _denied_by(self, call: ToolCall) -> str | None:
         """Return the first deny pattern a shell command matches."""
         if call["name"] not in self.shell_tools:
