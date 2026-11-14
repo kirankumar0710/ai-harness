@@ -376,6 +376,8 @@ odysseus
 │   └── odysseus_v2                    the package (import odysseus_v2)
 │       ├── __init__.py                public API: create_provider, run_loop
 │       ├── loop.py                    the agent loop
+│       ├── tools.py                   @tool decorator, six core tools, path jail
+│       ├── security.py                permission gate: deny rules, modes, approver
 │       └── providers
 │           ├── __init__.py            create_provider() and the vendor registry
 │           ├── base.py                Provider interface, config, HTTP with retries
@@ -389,5 +391,6 @@ odysseus
 │       ├── dice.py                    the demo script
 │       └── dice_walkthrough.html      goal, how to run, sample output, analysis
 └── tests
-    └── test_harness.py                offline tests (fake transport, no network)
+    ├── test_harness.py                offline tests (fake transport, no network)
+    └── test_tools_security.py         tool contracts, path jail, permission gate
 ```
