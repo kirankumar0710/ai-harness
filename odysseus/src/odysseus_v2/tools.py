@@ -200,25 +200,25 @@ def _glob_match(rel: str, name: str, pattern: str) -> bool:
 
 def core_tools(workdir: str | os.PathLike[str]) -> list[Tool]:
     """Return the six core tools, jailed to ``workdir``."""
-    root = os.path.realpath(workdir)
+    jail_dir = os.path.realpath(workdir)
 
     def resolve(path: str) -> str:
-        """Map a relative path into ``root``; refuse anything outside it.
+        """Map a relative path into ``jail_dir``; refuse anything outside.
 
         ``realpath`` follows symlinks first, so a link pointing out of
         the jail is caught as well as ``../`` tricks.
         """
-        full = os.path.realpath(os.path.join(root, path))
-        if full != root and not full.startswith(root + os.sep):
+        full = os.path.realpath(os.path.join(jail_dir, path))
+        if full != jail_dir and not full.startswith(jail_dir + os.sep):
             raise PermissionError(f"{path!r} escapes the working directory")
         return full
 
     def walk() -> Iterator[tuple[str, str]]:
-        """Yield (relative_path, file_name) for every file under root."""
-        for base, dirs, files in os.walk(root):
+        """Yield (relative_path, file_name) for every file under jail_dir."""
+        for base, dirs, files in os.walk(jail_dir):
             dirs[:] = sorted(d for d in dirs if d not in SKIPPED_DIRS)
             for name in sorted(files):
-                yield os.path.relpath(os.path.join(base, name), root), name
+                yield os.path.relpath(os.path.join(base, name), jail_dir), name
 
     @tool("Read a file. Returns its contents with line numbers.",
           path="Path relative to the working directory")
@@ -271,7 +271,7 @@ def core_tools(workdir: str | os.PathLike[str]) -> list[Tool]:
     def bash(command: str, timeout: int = DEFAULT_BASH_TIMEOUT) -> str:
         try:
             done = subprocess.run(
-                command, shell=True, cwd=root, capture_output=True,
+                command, shell=True, cwd=jail_dir, capture_output=True,
                 text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
             return f"ERROR: timed out after {timeout}s"
@@ -307,7 +307,7 @@ def core_tools(workdir: str | os.PathLike[str]) -> list[Tool]:
             if not fnmatch.fnmatch(name, pattern):
                 continue
             try:
-                with open(os.path.join(root, rel), encoding="utf-8",
+                with open(os.path.join(jail_dir, rel), encoding="utf-8",
                           errors="ignore") as f:
                     for number, line in enumerate(f, start=1):
                         if matcher.search(line):
