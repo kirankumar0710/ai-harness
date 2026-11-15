@@ -33,7 +33,7 @@ Approver = Callable[[ToolCall, str], bool]
 MODES: tuple[str, ...] = get_args(Mode)
 
 # Tools with no side effects: allowed in every mode without asking.
-READ_TOOLS = frozenset({"read_file", "list_files", "grep"})
+READ_TOOLS = frozenset({"read_file", "list_files", "grep", "use_skill"})
 
 # Tools whose ``command`` argument is a shell command to screen.
 SHELL_TOOLS = frozenset({"bash"})

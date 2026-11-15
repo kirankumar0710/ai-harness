@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skills Demo</title>
+  <style>
+    :root {
+      --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1f; --muted: #5f6368;
+      --border: #e2e2de; --accent: #2f5fd0; --code-bg: #f0f0ec;
+      --ok: #1e7a3c; --warn: #9a5b00; --warn-bg: #fff6e5; --bad: #b3261e;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16171a; --surface: #1f2125; --text: #e8e8ea; --muted: #a0a4ab;
+        --border: #33363c; --accent: #8fb0ff; --code-bg: #2a2d33;
+        --ok: #6fd08f; --warn: #f0b45a; --warn-bg: #2e2716; --bad: #ff8a80;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 2rem 1rem 4rem;
+      font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    main { max-width: 820px; margin: 0 auto; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    h1 { font-size: 1.9rem; margin: .75rem 0 .25rem; }
+    .lead { color: var(--muted); margin: 0 0 1.5rem; }
+    nav.toc { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .92rem;
+              padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.35rem; margin: 2.5rem 0 .75rem; }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; }
+    code { font: .88em ui-monospace, SFMono-Regular, Menlo, monospace;
+           background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem 1.1rem; overflow-x: auto;
+      font: .85rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; padding: 0; font-size: inherit; }
+    .dim { color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+    th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--border);
+             vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    .ok { color: var(--ok); font-weight: 600; }
+    .bad { color: var(--bad); font-weight: 600; }
+    .callout {
+      background: var(--warn-bg); border-left: 4px solid var(--warn);
+      padding: .9rem 1.1rem; border-radius: 6px; margin: 1rem 0;
+    }
+    .callout strong { color: var(--warn); }
+    ol li, ul li { margin-bottom: .35rem; }
+    .diagram { overflow-x: auto; margin: 1rem 0; }
+    pre.mermaid { background: var(--surface); text-align: center; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="../index.html">← All demos</a>
+  <h1>Skills: instructions loaded only when needed</h1>
+  <p class="lead">
+    <code>demos/skills/skills.py</code> gives a model two skills, a release-note guide and a
+    migration-review checklist, and three tasks. It shows which skill the model loads for each
+    task, and whether it followed the instructions.
+  </p>
+
+  <nav class="toc">
+    <a href="#goal">Goal</a>
+    <a href="#how">How it works</a>
+    <a href="#run">How to run</a>
+    <a href="#output">Sample output</a>
+    <a href="#analysis">Analysis</a>
+    <a href="#next">Next steps</a>
+  </nav>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="goal">Goal</h2>
+  <p>A <strong>skill</strong> is a packet of instructions for one kind of task, such as
+     “how to write a release note” or “how to review a database migration”. It is stored as a
+     file the agent can read, not as code. The demo shows the three things that make that
+     useful:</p>
+  <ol>
+    <li><strong>Reusable instructions for a type of task.</strong> Each skill sets a format
+        specific enough that the model could not guess it. If the output matches, the model
+        followed the skill.</li>
+    <li><strong>Stored separately, as files.</strong> Both skills are plain
+        <code>SKILL.md</code> files checked in next to the script. Adding a skill means
+        adding a folder; no harness code changes.</li>
+    <li><strong>Loaded only when relevant.</strong> Every prompt carries only each skill's
+        one-line description. The full text enters the conversation only when the model
+        calls <code>use_skill</code>, and one of the three tasks needs no skill at all.</li>
+  </ol>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="how">How it works</h2>
+
+  <h3>The two skills</h3>
+  <p>A skill is a folder with one <code>SKILL.md</code>. The folder name is the skill's name.
+     The <code>description</code> in the front matter (between the <code>---</code> lines)
+     is the only part the model sees up front; everything below it is the instructions.
+     These files are in <code>demos/skills/example_skills/</code>.</p>
+<pre><code><span class="dim"># example_skills/release-note/SKILL.md</span>
+---
+description: How to write a release note for a change in this project
+---
+# Writing a release note
+
+Add the new entry to RELEASE_NOTES.md, directly under the
+"# Release notes" heading, in exactly this format:
+
+    ## &lt;version&gt; - &lt;YYYY-MM-DD&gt;
+    ### Fixed
+    - &lt;what was wrong, in words a user understands&gt; (&lt;file changed&gt;)
+    Upgrade: &lt;what a user must do, or "no action needed"&gt;
+
+Rules:
+- Use the version and date given in the task. Never invent them.
+- One line per change, past tense, no code or jargon.
+- Put the changed file name in brackets at the end of the line.
+- Always include the Upgrade line, even when nothing is needed.
+- Never edit or reorder older entries.</code></pre>
+<pre><code><span class="dim"># example_skills/review-migration/SKILL.md</span>
+---
+description: How to review a database migration before it is merged
+---
+# Reviewing a database migration
+
+Read the migration file, then check these four points, in this order.
+Report each on its own line as PASS or FAIL, with one short reason:
+
+1. Reversible: is there a matching down migration (the same name with
+   .down.sql) that undoes it?
+2. Locking: does it add a NOT NULL column without a DEFAULT to an
+   existing table? That fails on tables with rows, or locks them.
+3. Indexes: does every new foreign key column have an index?
+4. Data: does it delete or rewrite existing rows?
+
+Format each line as:
+
+    &lt;n&gt;. &lt;name&gt;: PASS|FAIL - &lt;reason&gt;
+
+End with exactly one of these lines:
+
+    Verdict: APPROVE
+    Verdict: REQUEST CHANGES
+
+Request changes if any check fails. Do not edit the migration yourself;
+the author fixes it.</code></pre>
+
+  <h3>What the model sees up front</h3>
+  <p><code>run_task()</code> builds the system prompt with <code>catalog_prompt()</code> from
+     <code>skills.py</code>. For these two skills, this is the whole skills section the model
+     sees on every call:</p>
+<pre><code>Skills available (load one with the use_skill tool when relevant):
+- release-note: How to write a release note for a change in this project
+- review-migration: How to review a database migration before it is merged</code></pre>
+  <p>That is <strong>214 characters</strong>, against <strong>1,517
+     characters</strong> for the two full skills. The model pays for a skill's full text
+     only in the conversations that need it. With twenty skills, the catalog grows by one
+     line each; the full texts would not fit in every prompt.</p>
+
+  <h3>How a skill is loaded</h3>
+  <p><code>use_skill</code> is an ordinary tool, from <code>skill_tools()</code> in
+     <code>skills.py</code>. The model passes a skill <em>name</em>; the tool looks it up in
+     the catalog and returns the file's text as the tool result. It never takes a path, so it
+     cannot be used to read other files. It only reads, so the gate treats it as a read tool
+     and allows it in every mode.</p>
+  <div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+    participant M as model
+    participant RL as run_loop()
+    participant S as use_skill
+    participant F as skills/release-note/SKILL.md
+
+    Note over M: system prompt lists:<br/>release-note, review-migration
+    M->>RL: use_skill(name="release-note")
+    RL->>S: run(name="release-note")
+    S->>F: look up in catalog, read file
+    F-->>S: the instructions
+    S-->>RL: tool result = full SKILL.md text
+    RL-->>M: instructions now in the conversation
+    M->>RL: write_file(RELEASE_NOTES.md, entry in that format)
+</pre>
+  </div>
+  <noscript><p class="dim">The diagram above needs JavaScript and an internet connection
+     to draw; without them its source text is shown.</p></noscript>
+
+  <h3>The project</h3>
+  <p>The script builds a throwaway project in a temporary folder and copies the skills into
+     its <code>skills/</code> folder, where <code>skills.py</code> looks for them:</p>
+<pre><code>&lt;tmp&gt;/calc.py                            the fixed average()
+&lt;tmp&gt;/RELEASE_NOTES.md                    just the heading "# Release notes"
+&lt;tmp&gt;/migrations/0002_add_email.up.sql    the migration to review
+&lt;tmp&gt;/skills/release-note/SKILL.md
+&lt;tmp&gt;/skills/review-migration/SKILL.md</code></pre>
+  <p><code>RELEASE_NOTES.md</code> has no earlier entries on purpose: with one to copy, the
+     model could match the format without reading the skill. The migration has three
+     problems the checklist should catch:</p>
+<pre><code><span class="dim"># migrations/0002_add_email.up.sql</span>
+-- 0002: give users an email address and link orders to users
+ALTER TABLE users ADD COLUMN email TEXT NOT NULL;
+ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id);</code></pre>
+  <p>No <code>.down.sql</code> exists (not reversible), <code>email</code> is
+     <code>NOT NULL</code> with no default (locking), and <code>user_id</code> is a foreign
+     key with no index. It deletes no data. The expected verdict is
+     <code>REQUEST CHANGES</code>.</p>
+
+  <h3>The three tasks</h3>
+  <p>Each task is a fresh conversation through <code>run_task()</code> in safe mode. The
+     approver allows file writes (<code>write_file</code>, <code>edit_file</code>) and
+     refuses everything else, including <code>bash</code>, which no task needs.</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th>#</th><th>Task (as sent)</th><th>Skill it should load</th><th>Check</th></tr>
+      <tr><td>1</td><td>“We fixed a bug in calc.py … Add a release note for version 1.0.1,
+              dated &lt;today&gt;.”</td>
+          <td><code>release-note</code> only</td>
+          <td>The new entry in <code>RELEASE_NOTES.md</code> matches the skill's format:
+              heading, <code>### Fixed</code>, the file in brackets, an
+              <code>Upgrade:</code> line.</td></tr>
+      <tr><td>2</td><td>“In one sentence: what does average() in calc.py return?”</td>
+          <td><strong>none</strong></td>
+          <td>No <code>use_skill</code> call at all.</td></tr>
+      <tr><td>3</td><td>“Review the migration migrations/0002_add_email.up.sql.”</td>
+          <td><code>review-migration</code> only</td>
+          <td>The answer has four numbered <code>PASS|FAIL - reason</code> lines and a
+              <code>Verdict:</code> line.</td></tr>
+    </table>
+  </div>
+  <p>The task wording never mentions a skill or a format. Choosing the skill is the model's
+     job, from the one-line descriptions alone.</p>
+
+  <h3>Reading the output</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Line</th><th>Meaning</th></tr>
+      <tr><td><code>skills: ... (N chars on disk, M chars in every system prompt)</code></td>
+          <td>the full skills' size against the catalog's size</td></tr>
+      <tr><td><code>-&gt; use_skill(name=...)</code></td><td>the model loading a skill</td></tr>
+      <tr><td><code>&lt;- --- ... (16 lines)</code></td><td>the skill's text arriving as the
+          tool result, shortened to its first and last lines</td></tr>
+      <tr><td><code>? approver: ...</code></td><td>the approver's decision on a write</td></tr>
+      <tr><td><code>=== summary ===</code></td><td>per task: skills loaded, whether that was
+          expected, and the format check</td></tr>
+    </table>
+  </div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="run">How to run</h2>
+  <h3>0. Install the package (once)</h3>
+  <p>From the <code>odysseus</code> project folder.</p>
+<pre><code>pip install -e .</code></pre>
+
+  <h3>1. Offline: no provider, no key</h3>
+  <p>A scripted “model” replays the calls a real one should make. The skills, the catalog,
+     <code>use_skill</code>, the gate and the format checks are all real.</p>
+<pre><code>python3 demos/skills/skills.py --offline</code></pre>
+
+  <h3>2. Live: a real model</h3>
+  <p>Set the provider and key exactly as for the <a href="../dice/dice_walkthrough.html#run">dice
+     demo</a>, then:</p>
+<pre><code>python3 demos/skills/skills.py</code></pre>
+  <p>Add <code>--keep</code> to keep the temporary project, for example to read the
+     <code>RELEASE_NOTES.md</code> the model wrote.</p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="output">Sample output</h2>
+  <h3>Offline run (scripted model)</h3>
+  <p>The model's lines are scripted; every tool result, approver decision and check is
+     produced by the real harness. The path is shortened.</p>
+<pre><code>$ python3 demos/skills/skills.py --offline
+provider: offline - scripted replies
+
+sandbox: /var/folders/.../T/odysseus-skills-xxxx
+skills: release-note, review-migration  (1517 chars on disk, 214 chars in every system prompt)
+
+=== task 1: release note ===
+user: We fixed a bug in calc.py: average() divided by len(values) - 1 instead of len(values), so every average came out too high. Add a release note for version 1.0.1, dated 2026-11-16.
+  -&gt; use_skill(name='release-note')
+  &lt;- ---  ...  - Never edit or reorder older entries.  (16 lines)
+  -&gt; write_file(path='RELEASE_NOTES.md', content='# Release notes  ## 1.0.1 - 2026-11-16 ### Fixed - A...')
+  ? approver: write_file -&gt; yes
+  &lt;- Wrote 154 chars to RELEASE_NOTES.md
+assistant: Added the 1.0.1 entry to RELEASE_NOTES.md.
+
+=== task 2: question ===
+user: In one sentence: what does average() in calc.py return?
+  -&gt; read_file(path='calc.py')
+  &lt;- 1	def average(values):  ...  3	    return sum(values) / len(values)  (3 lines)
+assistant: It returns the arithmetic mean: the sum of the values divided by how many there are.
+
+=== task 3: migration review ===
+user: Review the migration migrations/0002_add_email.up.sql.
+  -&gt; use_skill(name='review-migration')
+  &lt;- ---  ...  the author fixes it.  (19 lines)
+  -&gt; read_file(path='migrations/0002_add_email.up.sql')
+  &lt;- 1	-- 0002: give users an email address and link orders to users  ...  3	ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES u  (3 lines)
+  -&gt; list_files(pattern='migrations/*')
+  &lt;- migrations/0002_add_email.up.sql
+assistant: 1. Reversible: FAIL - there is no 0002_add_email.down.sql
+2. Locking: FAIL - users.email is NOT NULL with no DEFAULT
+3. Indexes: FAIL - orders.user_id is a foreign key with no index
+4. Data: PASS - no rows are deleted or rewritten
+Verdict: REQUEST CHANGES
+
+=== summary ===
+task 1 (release note): skills loaded ['release-note'] - as expected; entry in the skill's format: yes
+task 2 (question): skills loaded none - as expected; no format to check
+task 3 (migration review): skills loaded ['review-migration'] - as expected; 4 checks + verdict: yes (4 check lines, verdict REQUEST CHANGES)</code></pre>
+  <p class="dim">A live run is still to come; its output and analysis will be added here.</p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="analysis">Analysis</h2>
+  <p><span class="ok">Offline: every check passes.</span> This proves the plumbing, not the
+     model: the catalog reaches the system prompt, <code>use_skill</code> returns the right
+     file by name, the gate allows it, and the format checks recognise a correct entry and
+     review.</p>
+  <ul>
+    <li><strong>Context:</strong> the catalog costs 214 characters per call; the
+        two full skills are 1,517. Each task loaded at most one skill, so no task paid
+        for the other.</li>
+    <li><strong>Task 2 loaded nothing.</strong> A question about the code needs no
+        instructions, and the conversation never contains either skill's text.</li>
+    <li><strong>Task 3 loaded the skill and read the file in the same reply.</strong> The
+        loop runs calls in order, so the checklist was in the conversation before the model
+        wrote its review.</li>
+  </ul>
+
+  <h3>What the live run will test</h3>
+  <p>Offline, the script decides which skill to load. Live, the model decides, from the
+     descriptions alone. Things to look for:</p>
+  <ul>
+    <li><strong>Does it load the skill without being told?</strong> The tasks never mention
+        skills. A model that writes the release note from general knowledge will get the
+        format wrong, and the check will say <code>no</code>.</li>
+    <li><strong>Does it load only the relevant skill?</strong> Loading both, or loading one
+        for the question, costs context for nothing.</li>
+    <li><strong>Does it follow the instructions exactly?</strong> The bracketed file name,
+        the <code>Upgrade:</code> line, and the four checks in order are the details most
+        likely to drift.</li>
+  </ul>
+
+  <h3>Something to watch</h3>
+  <div class="callout">
+    <p style="margin-top:0"><strong>Skills are trusted instructions.</strong> A skill's text
+      enters the conversation as a tool result, and the model is told to follow it. Anyone
+      who can add a folder under <code>skills/</code> can steer the agent: a skill could tell
+      it to run commands or send files somewhere. Review skills the way you review code.</p>
+    <p style="margin-bottom:0"><strong>The description is the whole selection
+      mechanism.</strong> The model chooses from one line per skill. A vague description
+      (“database stuff”) gets a skill loaded for the wrong tasks or not at all. Write it as
+      “how to &lt;task&gt;”, the way both skills here do.</p>
+  </div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="next">Next steps</h2>
+  <ul>
+    <li><strong>Run it live</strong> and add the output and analysis here.</li>
+    <li><strong>Add a third, unrelated skill</strong> to check the model still picks only
+        the relevant one as the catalog grows.</li>
+    <li><strong>Try a vague description</strong> on one skill to see selection fail, then
+        fix the description and rerun.</li>
+  </ul>
+</main>
+<!-- Draws the sequence diagram. Pinned version; if offline, the source text stays visible. -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) {
+    const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "default" });
+  }
+</script>
+</body>
+</html>

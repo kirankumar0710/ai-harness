@@ -161,6 +161,10 @@ odysseus
 │       ├── loop.py                    the agent loop
 │       ├── tools.py                   @tool decorator, six core tools, path jail
 │       ├── security.py                permission gate: deny rules, modes, approver
+│       ├── context.py                 token budget and the compactor
+│       ├── memory.py                  system prompt, AGENT_MEMORY.md memory, remember tool
+│       ├── skills.py                  skills catalog and the use_skill tool
+│       ├── harness.py                 run_task(): every part connected
 │       └── providers
 │           ├── __init__.py            create_provider() and the vendor registry
 │           ├── base.py                Provider interface, config, HTTP with retries
@@ -173,12 +177,17 @@ odysseus
 │   ├── dice                           one tool, two tasks: the loop end to end
 │   │   ├── dice.py                    the demo script
 │   │   └── dice_walkthrough.html      goal, how to run, sample output, analysis
-│   └── gate                           six core tools through every permission mode
-│       ├── gate.py                    the demo script (--offline needs no API key)
-│       └── gate_walkthrough.html      goal, how to run, sample output, analysis
+│   ├── gate                           six core tools through every permission mode
+│   │   ├── gate.py                    the demo script (--offline needs no API key)
+│   │   └── gate_walkthrough.html      goal, how to run, sample output, analysis
+│   └── skills                         two skills, three tasks: loaded only when relevant
+│       ├── skills.py                  the demo script (--offline needs no API key)
+│       ├── skills_walkthrough.html    goal, how to run, sample output, analysis
+│       └── example_skills/            release-note and review-migration SKILL.md files
 └── tests
     ├── test_harness.py                offline tests (fake transport, no network)
-    └── test_tools_security.py         tool contracts, path jail, permission gate
+    ├── test_tools_security.py         tool contracts, path jail, permission gate
+    └── test_context_memory_skills.py  compaction, memory, skills, run_task
 ```
 
 ## Architecture
