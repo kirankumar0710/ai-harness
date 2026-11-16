@@ -392,30 +392,72 @@ correct                                    yes               yes
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="analysis">Analysis</h2>
-  <h3>Request size, request by request</h3>
+  <p>From the <a href="#output">latest live run</a> (<code>anthropic</code> /
+     <code>claude-sonnet-5-5</code>, budget 5,000). All sizes are as the vendor reported them.</p>
+
+  <h3 id="live-5000">Request size, request by request</h3>
   <p class="legend"><span><i style="background:var(--bar-a)"></i>without compaction</span>
      <span><i style="background:var(--bar-b)"></i>with compaction (budget 5,000)</span></p>
   <div class="table-wrap">
     <table class="bars">
       <tr><th class="num">request</th><th></th><th class="num">tokens (without / with)</th></tr>
-      <tr><td class="num">1</td><td style="width:100%"><div class="bar a" style="width:7.2%"></div><div class="bar b" style="width:7.2%"></div></td><td class="num">409 / 409</td></tr>
-      <tr><td class="num">2</td><td style="width:100%"><div class="bar a" style="width:18.7%"></div><div class="bar b" style="width:18.7%"></div></td><td class="num">1,054 / 1,054</td></tr>
-      <tr><td class="num">3</td><td style="width:100%"><div class="bar a" style="width:30.1%"></div><div class="bar b" style="width:30.1%"></div></td><td class="num">1,699 / 1,699</td></tr>
-      <tr><td class="num">4</td><td style="width:100%"><div class="bar a" style="width:41.5%"></div><div class="bar b" style="width:41.5%"></div></td><td class="num">2,344 / 2,344</td></tr>
-      <tr><td class="num">5</td><td style="width:100%"><div class="bar a" style="width:52.9%"></div><div class="bar b" style="width:52.9%"></div></td><td class="num">2,989 / 2,989</td></tr>
-      <tr><td class="num">6</td><td style="width:100%"><div class="bar a" style="width:64.3%"></div><div class="bar b" style="width:64.3%"></div></td><td class="num">3,635 / 3,635</td></tr>
-      <tr><td class="num">7</td><td style="width:100%"><div class="bar a" style="width:75.8%"></div><div class="bar b" style="width:75.8%"></div></td><td class="num">4,280 / 4,280</td></tr>
-      <tr><td class="num">8</td><td style="width:100%"><div class="bar a" style="width:87.2%"></div><div class="bar b" style="width:87.2%"></div></td><td class="num">4,925 / 4,925</td></tr>
-      <tr><td class="num">9</td><td style="width:100%"><div class="bar a" style="width:98.7%"></div><div class="bar b" style="width:41.8%"></div></td><td class="num">5,577 / 2,361</td></tr>
-      <tr><td class="num">10</td><td style="width:100%"><div class="bar a" style="width:100.0%"></div><div class="bar b" style="width:43.1%"></div></td><td class="num">5,649 / 2,433</td></tr>
+      <tr><td class="num">1</td><td style="width:100%"><div class="bar a" style="width:9.8%"></div><div class="bar b" style="width:9.8%"></div></td><td class="num">871 / 871</td></tr>
+      <tr><td class="num">2</td><td style="width:100%"><div class="bar a" style="width:20.8%"></div><div class="bar b" style="width:20.8%"></div></td><td class="num">1,843 / 1,843</td></tr>
+      <tr><td class="num">3</td><td style="width:100%"><div class="bar a" style="width:31.8%"></div><div class="bar b" style="width:31.8%"></div></td><td class="num">2,816 / 2,816</td></tr>
+      <tr><td class="num">4</td><td style="width:100%"><div class="bar a" style="width:42.7%"></div><div class="bar b" style="width:42.7%"></div></td><td class="num">3,790 / 3,790</td></tr>
+      <tr><td class="num">5</td><td style="width:100%"><div class="bar a" style="width:53.7%"></div><div class="bar b" style="width:53.7%"></div></td><td class="num">4,764 / 4,764</td></tr>
+      <tr><td class="num">6</td><td style="width:100%"><div class="bar a" style="width:64.7%"></div><div class="bar b" style="width:26.0%"></div></td><td class="num">5,737 / 2,308</td></tr>
+      <tr><td class="num">7</td><td style="width:100%"><div class="bar a" style="width:75.7%"></div><div class="bar b" style="width:37.0%"></div></td><td class="num">6,711 / 3,282</td></tr>
+      <tr><td class="num">8</td><td style="width:100%"><div class="bar a" style="width:86.7%"></div><div class="bar b" style="width:48.0%"></div></td><td class="num">7,685 / 4,256</td></tr>
+      <tr><td class="num">9</td><td style="width:100%"><div class="bar a" style="width:97.7%"></div><div class="bar b" style="width:26.8%"></div></td><td class="num">8,662 / 2,373</td></tr>
+      <tr><td class="num">10</td><td style="width:100%"><div class="bar a" style="width:100.0%"></div><div class="bar b" style="width:29.3%"></div></td><td class="num">8,867 / 2,594</td></tr>
     </table>
   </div>
-  <p>Without compaction the size climbs by about 650 tokens per file read. With compaction it
-     follows the same line until the ninth request would pass the 5,000 budget. One fold
-     brings it to about 2,350, under its target of half the budget (2,500), and the task
-     ends before it needs another. Every request stays under the budget.</p>
+  <p>Without compaction each request carries everything before it, so it grows by about 970
+     tokens per file read, to 8,867. With compaction the line is the same for five requests.
+     The sixth would have passed 5,000, so the compactor folded nine messages first and the
+     request went out at 2,308. Three reads later it folded again, to 2,373. Every request
+     stayed under the budget.</p>
 
   <h3>Before and after</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
+      <tr><td>agent requests</td><td class="num">10</td><td class="num">10</td></tr>
+      <tr><td>compactions</td><td class="num">0</td><td class="num">2</td></tr>
+      <tr><td>largest request (estimate)</td><td class="num">5,821</td><td class="num">3,045</td></tr>
+      <tr><td>largest request (reported)</td><td class="num">8,867</td><td class="num">4,764</td></tr>
+      <tr><td>messages at the end</td><td class="num">21</td><td class="num">7</td></tr>
+      <tr><td>tokens sent (estimate)</td><td class="num">33,237</td><td class="num">21,850</td></tr>
+      <tr><td>tokens sent (reported)</td><td class="num">51,746</td><td class="num">35,664</td></tr>
+      <tr><td>TOTAL.txt</td><td class="num">156</td><td class="num">156</td></tr>
+      <tr><td>correct</td><td class="num">yes</td><td class="num">yes</td></tr>
+    </table>
+  </div>
+  <ul>
+    <li><span class="ok">Two folds, each reaching its target.</span> After each fold the
+        request was about 2,100–2,200 (estimated) against a target of half the budget, 2,500,
+        so there was room to work between folds and no <code>budget_warning</code>. At a
+        budget of 2,500 the same task folded at 8 of 10 requests (see the earlier run
+        below).</li>
+    <li><strong>31% fewer tokens in total</strong> (51,746 against 35,664 reported), including
+        the two summary calls. The largest request was 4,764 instead of 8,867. On a longer
+        task the gap keeps widening: without compaction the size grows with every step; with
+        it, it stays within the budget however long the task runs.</li>
+    <li><strong>The summary kept every value</strong> and a running total, “125 (through
+        fjord.txt; not final)”, and the model's interim answer, “Sum: 125 + 31 = 156”, adds the
+        last value to it. The answer is correct, with 7 messages left instead of 21.</li>
+    <li><strong>The estimate is still low.</strong> The demo's own estimate of the largest
+        request was 3,045 against 4,764 reported. The compactor no longer relies on it: after
+        the first request it measures from the reported sizes.</li>
+  </ul>
+
+  <h3>Offline run</h3>
+  <p>The scripted run folds once, at request 9, and saves about 11%. It differs from the live
+     run because offline every size is an estimate: the fixed part of a request (system
+     prompt and tool schemas) is estimated at 409 tokens, against about 870 reported live,
+     and each file read at about 650 against about 970. Offline shows the mechanism; the live
+     run shows the real sizes.</p>
   <div class="table-wrap">
     <table>
       <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
@@ -430,45 +472,6 @@ correct                                    yes               yes
       <tr><td>correct</td><td class="num">yes</td><td class="num">yes</td></tr>
     </table>
   </div>
-  <ul>
-    <li><strong>One fold, and it reached its target.</strong> After folding, the request was
-        about 2,350 tokens, under the 2,500 target, so there is room for several more steps
-        before the next fold, and no <code>budget_warning</code>.</li>
-    <li><strong>Total tokens: about 11% fewer</strong> on this eight-step task, including the
-        summary request. The saving grows with the length of the task: without compaction
-        every request carries everything before it; with it, the size stays within the
-        budget however long the task runs.</li>
-    <li><strong>The answer survived.</strong> The summary lists every value folded so far, so
-        the total is right with 10 messages left instead of 20.</li>
-  </ul>
-
-  <h3 id="live-5000">Live run: two folds, each reaching its target</h3>
-  <div class="table-wrap">
-    <table>
-      <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
-      <tr><td>agent requests</td><td class="num">10</td><td class="num">10</td></tr>
-      <tr><td>compactions</td><td class="num">0</td><td class="num">2</td></tr>
-      <tr><td>largest request (reported)</td><td class="num">8,867</td><td class="num">4,764</td></tr>
-      <tr><td>messages at the end</td><td class="num">21</td><td class="num">7</td></tr>
-      <tr><td>tokens sent (reported, incl. summaries)</td><td class="num">51,746</td><td class="num">35,664</td></tr>
-      <tr><td>TOTAL.txt</td><td class="num">156</td><td class="num">156</td></tr>
-    </table>
-  </div>
-  <ul>
-    <li><span class="ok">This is the behaviour the demo is for.</span> The conversation grew
-        normally for five reads. Before the sixth request it would have passed 5,000, so the
-        compactor folded nine messages and brought it to about 2,100, under its target of
-        2,500. Three more reads later it folded again, to about 2,200. Two summary calls
-        instead of the eight it made at a budget of 2,500.</li>
-    <li><strong>No budget warning</strong>: both folds reached their target, so there was
-        room to work between them.</li>
-    <li><strong>Every request within budget</strong> by the vendor's count (largest 4,764);
-        without compaction they climbed to 8,867. 31% fewer tokens in total, including the
-        summaries, and the answer is still 156.</li>
-    <li><strong>The summary kept every value</strong> and a running total, “125 (through
-        fjord.txt; not final)”, and the model's interim answer, “Sum: 125 + 31 = 156”, adds the
-        last value to it.</li>
-  </ul>
 
   <h3 id="live-now">Earlier live run at a budget of 2,500: within budget every time, but folding at almost every step</h3>
   <div class="table-wrap">

@@ -340,9 +340,10 @@ I can also adapt this to React or Tailwind, add an online ordering section, or c
         back, locally generated call ids, empty message parts), so it is the most worth
         checking.</li>
     <li><strong>Run with OpenAI or OpenRouter</strong> to cover the third request format.</li>
-    <li><strong>Lower the output limit on purpose</strong> (for example
-        <code>max_output_tokens = 1000</code> in your own <code>.ini</code>) to see the
-        truncation warning fire on the landing page.</li>
+    <li><strong>Lower the output limit on purpose</strong> to see the truncation warning fire
+        on the landing page. The limit is a provider setting, not an <code>.ini</code> one:
+        <code>create_provider(max_output_tokens=1000)</code>. The demo does not expose it
+        yet, so this needs a one-line change or a <code>--max-output</code> flag.</li>
   </ul>
 </main>
 <!-- Draws the sequence diagram. Pinned version; if offline, the source text stays visible. -->

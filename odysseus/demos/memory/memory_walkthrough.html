@@ -369,30 +369,10 @@ checks pass                            yes           yes
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="analysis">Analysis</h2>
-  <h3>Before and after</h3>
-  <div class="table-wrap">
-    <table>
-      <tr><th></th><th class="num">without memory</th><th class="num">with memory</th></tr>
-      <tr><td>model calls</td><td class="num">7</td><td class="num">4</td></tr>
-      <tr><td>tool calls</td><td class="num">6</td><td class="num">3</td></tr>
-      <tr><td>wasted calls</td><td class="num">1</td><td class="num">0</td></tr>
-      <tr><td>tokens sent (estimate)</td><td class="num">8,931</td><td class="num">4,382</td></tr>
-      <tr><td>tokens sent (reported)</td><td class="num">-</td><td class="num">-</td></tr>
-      <tr><td>checks pass</td><td class="num">yes</td><td class="num">yes</td></tr>
-    </table>
-  </div>
-  <ul>
-    <li><strong>The difference is the discovery.</strong> Run 1 listed the files, ran plain
-        <code>unittest</code> (0 tests, wasted), then worked out the real command. Run 2 ran
-        the real command first time, because its system prompt already said what it was.</li>
-    <li><strong>The note crossed a conversation boundary.</strong> Run 2 shared no messages
-        with run 1. The only link is the file, which is the point of memory.</li>
-    <li><strong>Offline proves the plumbing, not the model.</strong> The scripted model
-        follows a script either way. What is real: <code>remember</code> wrote the file, and
-        the file reached run 2's system prompt.</li>
-  </ul>
+  <p>From the <a href="#output">latest live run</a> (<code>anthropic</code> /
+     <code>claude-sonnet-5-5</code>). Token counts are as the vendor reported them.</p>
 
-  <h3>Live run: run 1 had to fail; run 2 did not</h3>
+  <h3>Before and after: run 1 had to fail; run 2 did not</h3>
   <div class="table-wrap">
     <table>
       <tr><th></th><th class="num">without memory</th><th class="num">with memory</th></tr>
@@ -429,6 +409,25 @@ checks pass                            yes           yes
      saved 46%. Keeping such notes out cost one refused call here. It is still the right
      trade: a wrong note misleads every later session, while a refused call costs one turn
      and says what to do instead.</p>
+
+  <h3>Offline run</h3>
+  <p>The scripted run shows the same mechanism with fixed steps: run 1 lists the files, runs
+     the plain test command, fails with <code>ImportError: these checks only run with
+     CALC_CHECKS=1 set</code>, then runs the right command and saves it; run 2 runs the right
+     command first time. The note crossed a conversation boundary: run 2 shared no messages
+     with run 1, only the file. Offline proves the plumbing (<code>remember</code> wrote the
+     file and it reached run 2's system prompt), not the model's judgement.</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th class="num">without memory</th><th class="num">with memory</th></tr>
+      <tr><td>model calls</td><td class="num">7</td><td class="num">4</td></tr>
+      <tr><td>tool calls</td><td class="num">6</td><td class="num">3</td></tr>
+      <tr><td>wasted calls</td><td class="num">1</td><td class="num">0</td></tr>
+      <tr><td>tokens sent (estimate)</td><td class="num">9,176</td><td class="num">4,518</td></tr>
+      <tr><td>tokens sent (reported)</td><td class="num">-</td><td class="num">-</td></tr>
+      <tr><td>checks pass</td><td class="num">yes</td><td class="num">yes</td></tr>
+    </table>
+  </div>
 
   <h3>First live run: the table went the wrong way</h3>
   <div class="table-wrap">
