@@ -34,7 +34,10 @@ Approver = Callable[[ToolCall, str], "bool | str"]
 MODES: tuple[str, ...] = get_args(Mode)
 
 # Tools with no side effects: allowed in every mode without asking.
-READ_TOOLS = frozenset({"read_file", "list_files", "grep", "use_skill"})
+# ``spawn_agent`` has none of its own: the child runs under the same
+# policy, so each of its calls is gated as the parent's would be.
+READ_TOOLS = frozenset({"read_file", "list_files", "grep", "use_skill",
+                        "spawn_agent"})
 
 # Tools whose ``command`` argument is a shell command to screen.
 SHELL_TOOLS = frozenset({"bash"})

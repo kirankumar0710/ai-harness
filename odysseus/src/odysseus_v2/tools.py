@@ -47,7 +47,11 @@ JSON_TYPES: dict[type, str] = {
     bool: "boolean",
 }
 
-SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv"})
+SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv",
+                          ".odysseus"})
+# The harness's own data (session logs): the file tools refuse it, so
+# the agent cannot read or rewrite the history it is replayed from.
+HARNESS_DIR = ".odysseus"
 
 MAX_READ_LINES = 4000
 MAX_OUTPUT_CHARS = 12000
@@ -223,6 +227,7 @@ def core_tools(workdir: str | os.PathLike[str],
     keys. ``shell_env`` adds variables a project's commands need.
     """
     jail_dir = os.path.realpath(workdir)
+    harness_dir = os.path.join(jail_dir, HARNESS_DIR)
     env = shell_environment(shell_env)
 
     def resolve(path: str) -> str:
@@ -234,6 +239,8 @@ def core_tools(workdir: str | os.PathLike[str],
         full = os.path.realpath(os.path.join(jail_dir, path))
         if full != jail_dir and not full.startswith(jail_dir + os.sep):
             raise PermissionError(f"{path!r} escapes the working directory")
+        if full == harness_dir or full.startswith(harness_dir + os.sep):
+            raise PermissionError(f"{path!r} is the harness's own data")
         return full
 
     def walk() -> Iterator[tuple[str, str]]:

@@ -149,6 +149,22 @@ A tool is any object with a `name`, a `spec` holding its JSON schema, and a
 complete example. `messages` is updated in place and holds the whole
 conversation.
 
+`run_task()` connects every part. With a session log, a run that dies can
+be resumed where it stopped:
+
+```python
+from odysseus_v2 import create_provider, open_session, run_task
+
+provider = create_provider()
+path, messages = open_session("path/to/project", "fix tests", resume=True)
+answer = run_task(provider, "path/to/project", "Fix the failing test.",
+                  mode="safe", messages=messages, session=path,
+                  subagent_depth=1)     # also offer spawn_agent
+```
+
+`resume=True` continues the newest log in `.odysseus/sessions/` if there is
+one, and starts a new log otherwise.
+
 ## Project layout
 
 ```
@@ -164,6 +180,8 @@ odysseus
 │       ├── context.py                 token budget and the compactor
 │       ├── memory.py                  system prompt, AGENT_MEMORY.md memory, remember tool
 │       ├── skills.py                  skills catalog and the use_skill tool
+│       ├── session.py                 append-only session log: resume after a crash
+│       ├── subagent.py                spawn_agent: a fresh agent for one sub-task
 │       ├── harness.py                 run_task(): every part connected
 │       └── providers
 │           ├── __init__.py            create_provider() and the vendor registry
@@ -193,14 +211,19 @@ odysseus
 │   │   ├── memory.py                  the demo script (--offline needs no API key)
 │   │   ├── output/                    complete output of every recorded run
 │   │   └── memory_walkthrough.html    goal, how to run, sample output, analysis
-│   └── context                        one long task twice: without and with compaction
-│       ├── context.py                 the demo script (--offline needs no API key)
+│   ├── context                        one long task twice: without and with compaction
+│   │   ├── context.py                 the demo script (--offline needs no API key)
+│   │   ├── output/                    complete output of every recorded run
+│   │   └── context_walkthrough.html   goal, how to run, sample output, analysis
+│   └── durability                     a killed process resumed from its log; a sub-agent
+│       ├── durability.py              the demo script (--offline needs no API key)
 │       ├── output/                    complete output of every recorded run
-│       └── context_walkthrough.html   goal, how to run, sample output, analysis
+│       └── durability_walkthrough.html  goal, how to run, sample output, analysis
 └── tests
     ├── test_harness.py                offline tests (fake transport, no network)
     ├── test_tools_security.py         tool contracts, path jail, permission gate
-    └── test_context_memory_skills.py  compaction, memory, skills, run_task
+    ├── test_context_memory_skills.py  compaction, memory, skills, run_task
+    └── test_session_subagent.py       session log, crash and resume, sub-agents
 ```
 
 ## Architecture
@@ -212,7 +235,7 @@ Applications usually call `run_task()`, which connects them all.
 
 | Part | Where | Job |
 |---|---|---|
-| **Harness** | `run_task()` in `harness.py` | connects every part below for one task: tools, system prompt, gate, compactor, loop |
+| **Harness** | `run_task()` in `harness.py` | connects every part below for one task: tools, system prompt, gate, compactor, session log, sub-agents, loop |
 | **Factory** | `create_provider()` in `providers/__init__.py` | picks the vendor and builds its provider with a resolved config |
 | **Agent loop** | `run_loop()` in `loop.py` | calls the model, runs the tools it asks for, repeats until it is done; reports a reply cut off at the output limit |
 | **Provider** | one subclass of `Provider` per vendor | converts the neutral conversation to the vendor's format and back |
@@ -222,6 +245,8 @@ Applications usually call `run_task()`, which connects them all.
 | **Compactor** | `Compactor` in `context.py` | before every model call: if the request would pass the budget (measured from the vendor's reported size), folds old turns into a summary; warns if the budget is too small to fold into |
 | **Memory** | `memory.py` | builds the system prompt, including `AGENT_MEMORY.md`; the `remember` tool adds to it |
 | **Skills** | `skills.py` | lists `skills/*/SKILL.md` in the prompt; the `use_skill` tool loads one when relevant |
+| **Session log** | `session.py` | appends every message to `.odysseus/sessions/*.jsonl` as it happens; resuming replays it, cuts a torn last line and answers calls whose results were lost |
+| **Sub-agents** | `subagent.py` | the `spawn_agent` tool runs a fresh `run_task()` on a self-contained brief, under the same policy, and returns only its report |
 
 ```mermaid
 flowchart TB
@@ -234,6 +259,7 @@ flowchart TB
         files["project files"]
         mem["AGENT_MEMORY.md"]
         skills["skills/*/SKILL.md"]
+        sessions[".odysseus/sessions/*.jsonl"]
     end
 
     subgraph odysseus["odysseus_v2"]
@@ -242,7 +268,8 @@ flowchart TB
         loop["run_loop()"]
         compactor["Compactor<br/>before_turn"]
         gate["Policy.check<br/>before_tool"]
-        tools["Tools<br/>core_tools + remember + use_skill"]
+        tools["Tools<br/>core_tools + remember + use_skill<br/>+ spawn_agent"]
+        log["session log<br/>message events"]
         factory["create_provider()"]
         provider["Provider<br/>Gemini / OpenAI / OpenRouter / Anthropic"]
         transport["post_json()<br/>retries + backoff"]
@@ -267,6 +294,9 @@ flowchart TB
     tools -- "jailed" --> files
     tools -- "remember" --> mem
     tools -- "use_skill" --> skills
+    tools -- "spawn_agent: a child run_task()" --> task
+    loop -- "every message" --> log
+    log -- "append / resume" --> sessions
 ```
 
 **How the loop works.** Each turn, `run_loop()` sends the conversation to the

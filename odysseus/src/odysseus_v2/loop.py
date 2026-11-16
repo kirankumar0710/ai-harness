@@ -71,7 +71,9 @@ def run_loop(
 
     ``messages`` is updated in place: it is the agent's entire memory.
 
-    Events: ``"assistant"`` after each model reply (payload: the
+    Events: ``"message"`` for every message appended to ``messages``
+    (payload: the ``Message``; a session log records these),
+    ``"assistant"`` after each model reply (payload: the
     ``Completion``), ``"tool_start"`` and ``"tool_end"`` around each tool,
     and ``"truncated"`` when a reply hit the output-token limit (the
     returned answer then ends with ``TRUNCATED_NOTE``).
@@ -85,7 +87,7 @@ def run_loop(
             messages[:] = before_turn(list(messages))
 
         reply = provider.complete(system, messages, schemas)
-        _append_reply(messages, reply)
+        _append_reply(messages, reply, on_event)
         on_event("assistant", reply)
         _report_truncation(reply, on_event)
 
@@ -95,20 +97,20 @@ def run_loop(
         for call in reply["tool_calls"]:    # answer every call, in order
             on_event("tool_start", call)
             text, is_error = _execute(call, tools, before_tool)
-            messages.append(Message(
+            _append(messages, Message(
                 role="tool", tool_call_id=call["id"], name=call["name"],
-                text=text, is_error=is_error))
+                text=text, is_error=is_error), on_event)
             on_event("tool_end", {**call, "result": text,
                                   "is_error": is_error})
 
     # Out of turns: ask for a status report instead of stopping silently.
-    messages.append(Message(role="user", text=WRAP_UP_PROMPT))
+    _append(messages, Message(role="user", text=WRAP_UP_PROMPT), on_event)
     reply = provider.complete(system, messages, schemas,
                               allow_tool_calls=False)
     # Drop any tool calls the model made anyway: they would never be
     # answered, which would leave the history invalid for the next call.
     _append_reply(messages, Completion(text=reply["text"], tool_calls=[],
-                                       usage=reply["usage"]))
+                                       usage=reply["usage"]), on_event)
     on_event("assistant", reply)
     _report_truncation(reply, on_event)
     return _answer(reply)
@@ -132,10 +134,17 @@ def _answer(reply: Completion) -> str:
     return reply["text"]
 
 
-def _append_reply(messages: MutableSequence[Message],
-                  reply: Completion) -> None:
-    messages.append(Message(role="assistant", text=reply["text"],
-                            tool_calls=list(reply["tool_calls"])))
+def _append(messages: MutableSequence[Message], message: Message,
+            on_event: EventHandler) -> None:
+    messages.append(message)
+    on_event("message", message)
+
+
+def _append_reply(messages: MutableSequence[Message], reply: Completion,
+                  on_event: EventHandler) -> None:
+    _append(messages, Message(role="assistant", text=reply["text"],
+                              tool_calls=list(reply["tool_calls"])),
+            on_event)
 
 
 def _execute(call: ToolCall, tools: Mapping[str, Tool],

@@ -113,6 +113,17 @@
     <div class="tags"><span>compaction</span><span>token budget</span><span>before / after</span><span>runs offline</span></div>
   </a>
 
+  <a class="demo" href="durability/durability_walkthrough.html">
+    <h2>Durability: crash, resume, and a sub-agent</h2>
+    <p>
+      Kills the agent's process with SIGKILL in the middle of a tool call, then resumes in a
+      new process from the session log alone, and checks that no step ran twice. Then answers
+      one question twice, reading six files itself or through <code>spawn_agent</code>, and
+      compares the parent's context. Runs offline with <code>--offline</code>.
+    </p>
+    <div class="tags"><span>session log</span><span>resume</span><span>sub-agents</span><span>runs offline</span></div>
+  </a>
+
   <footer>
     Demos make real API calls and need a provider and an API key (except
     with <code>--offline</code>); the unit
