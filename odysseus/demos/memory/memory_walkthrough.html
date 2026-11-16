@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memory Demo</title>
+  <style>
+    :root {
+      --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1f; --muted: #5f6368;
+      --border: #e2e2de; --accent: #2f5fd0; --code-bg: #f0f0ec;
+      --ok: #1e7a3c; --warn: #9a5b00; --warn-bg: #fff6e5; --bad: #b3261e;
+      --bar-a: #9aa3b5; --bar-b: #2f5fd0;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16171a; --surface: #1f2125; --text: #e8e8ea; --muted: #a0a4ab;
+        --border: #33363c; --accent: #8fb0ff; --code-bg: #2a2d33;
+        --ok: #6fd08f; --warn: #f0b45a; --warn-bg: #2e2716; --bad: #ff8a80;
+        --bar-a: #5d6472; --bar-b: #8fb0ff;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 2rem 1rem 4rem;
+      font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    main { max-width: 820px; margin: 0 auto; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    h1 { font-size: 1.9rem; margin: .75rem 0 .25rem; }
+    .lead { color: var(--muted); margin: 0 0 1.5rem; }
+    nav.toc { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .92rem;
+              padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.35rem; margin: 2.5rem 0 .75rem; }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; }
+    code { font: .88em ui-monospace, SFMono-Regular, Menlo, monospace;
+           background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem 1.1rem; overflow-x: auto;
+      font: .85rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; padding: 0; font-size: inherit; }
+    .dim { color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+    th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--border);
+             vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .ok { color: var(--ok); font-weight: 600; }
+    .bad { color: var(--bad); font-weight: 600; }
+    .callout {
+      background: var(--warn-bg); border-left: 4px solid var(--warn);
+      padding: .9rem 1.1rem; border-radius: 6px; margin: 1rem 0;
+    }
+    .callout strong { color: var(--warn); }
+    ol li, ul li { margin-bottom: .35rem; }
+    .bars td { padding: .2rem .5rem; border: 0; font-size: .85rem; }
+    .bar { height: .75rem; border-radius: 3px; }
+    .bar.a { background: var(--bar-a); }
+    .bar.b { background: var(--bar-b); }
+    .legend span { display: inline-flex; align-items: center; gap: .35rem; margin-right: 1rem;
+                   font-size: .88rem; color: var(--muted); }
+    .legend i { width: .9rem; height: .6rem; border-radius: 2px; display: inline-block; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="../index.html">← All demos</a>
+  <h1>Memory: the same task, before and after</h1>
+  <p class="lead">
+    <code>demos/memory/memory.py</code> runs one task twice in fresh conversations: first with
+    no memory, then with the note the agent saved the first time. A table at the end shows
+    what the note saved.
+  </p>
+
+  <nav class="toc">
+    <a href="#goal">Goal</a>
+    <a href="#how">How it works</a>
+    <a href="#run">How to run</a>
+    <a href="#output">Sample output</a>
+    <a href="#analysis">Analysis</a>
+    <a href="#next">Next steps</a>
+  </nav>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="goal">Goal</h2>
+  <p>A conversation ends and its messages are gone. <strong>Memory</strong> is what survives:
+     short facts in <code>AGENT_MEMORY.md</code>, a file in the project that
+     <code>memory.py</code> loads into the system prompt of every new session. The demo shows,
+     with numbers, what that buys:</p>
+  <ol>
+    <li>the agent <strong>saves</strong> a fact it had to discover, with the
+        <code>remember</code> tool;</li>
+    <li>a <strong>new</strong> conversation, sharing no messages with the first, starts with that
+        fact already in its system prompt;</li>
+    <li>so the same task takes <strong>fewer calls, fewer tokens and no wasted steps</strong>
+        the second time.</li>
+  </ol>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="how">How it works</h2>
+
+  <h3>The project and its hidden fact</h3>
+  <p>The throwaway project has the familiar <code>average()</code> bug, but its checks are
+     not where a model expects tests to be:</p>
+<pre><code><span class="dim"># calc.py</span>
+def average(values):
+    """Return the arithmetic mean of a non-empty list of numbers."""
+    return sum(values) / (len(values) - 1)
+
+<span class="dim"># checks/check_calc.py   (and an empty checks/__init__.py)</span>
+import unittest
+
+from calc import average
+
+
+class AverageCheck(unittest.TestCase):
+    def test_average(self):
+        self.assertEqual(average([2, 4, 6]), 4)</code></pre>
+  <p>Python's test runner looks for files named <code>test*.py</code>, so the obvious command
+     runs nothing:</p>
+<pre><code>$ python3 -m unittest
+Ran 0 tests in 0.000s
+NO TESTS RAN                      <span class="dim"># exit code 5</span>
+
+$ python3 -m unittest discover -s checks -p 'check_*.py' -t .
+Ran 1 test in 0.000s
+OK</code></pre>
+  <p>Nothing in the project says which command is right. A model has to find out by trying,
+     which is exactly the kind of fact worth remembering.</p>
+
+  <h3>The two runs</h3>
+  <p>Both runs send the same task, through <code>run_task()</code> in safe mode:</p>
+<pre><code>The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project.</code></pre>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Run</th><th>Before it starts</th><th>What it shows</th></tr>
+      <tr><td>1. without memory</td><td>No <code>AGENT_MEMORY.md</code>. The system prompt has no
+              memory section.</td>
+          <td>The cost of discovering the command, and the note saved at the end.</td></tr>
+      <tr><td>2. with memory</td><td><code>calc.py</code> is reset to the buggy version, but
+              <code>AGENT_MEMORY.md</code> from run 1 is kept. A fresh conversation: no
+              messages from run 1.</td>
+          <td>The same task, starting from the note.</td></tr>
+    </table>
+  </div>
+
+  <h3>How the note gets into the next session</h3>
+  <p>The <code>remember</code> tool (from <code>memory_tools()</code>) appends one line to
+     <code>AGENT_MEMORY.md</code>. At the start of every task, <code>run_task()</code> calls
+     <code>build_system_prompt()</code>, which adds the file's contents as a section. In
+     run 2 the model's system prompt contains:</p>
+<pre><code>Project memory (AGENT_MEMORY.md):
+- Checks live in checks/check_*.py, so plain 'python3 -m unittest' finds none; run them with: python3 -m unittest discover -s checks -p 'check_*.py' -t .</code></pre>
+  <p><code>remember</code> writes a file, so the gate treats it as a side effect: blocked in
+     read-only mode, asked about in safe mode. The demo's approver allows file edits,
+     <code>remember</code>, and plain <code>python3 -m unittest</code> commands.</p>
+
+  <h3>What the table measures</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Row</th><th>Meaning</th></tr>
+      <tr><td>model calls</td><td>requests sent to the model</td></tr>
+      <tr><td>tool calls</td><td>tools the model asked for</td></tr>
+      <tr><td>wasted calls</td><td>tool calls that achieved nothing: an error, a block, or a
+          test run that found no tests</td></tr>
+      <tr><td>tokens sent (estimate)</td><td>the size of every request added up, at four
+          characters per token: what the runs cost in input</td></tr>
+      <tr><td>tokens sent (reported)</td><td>the same, as the vendor counted it (live runs
+          only)</td></tr>
+      <tr><td>checks pass</td><td>the script runs the right command itself at the end</td></tr>
+    </table>
+  </div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="run">How to run</h2>
+  <p>From the <code>odysseus</code> folder, after <code>pip install -e .</code>:</p>
+<pre><code>python3 demos/memory/memory.py --offline   # scripted model, no key needed
+python3 demos/memory/memory.py             # a real model; provider and key as in the dice demo</code></pre>
+  <p>Add <code>--keep</code> to keep the temporary project and read its
+     <code>AGENT_MEMORY.md</code>.</p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="output">Sample output</h2>
+  <h3>Offline run (scripted model)</h3>
+  <p>The model's lines are scripted; every tool result, the memory file, the system prompt
+     and the counts are produced by the real harness. The path is shortened.</p>
+<pre><code>$ python3 demos/memory/memory.py --offline
+provider: offline - scripted replies
+
+sandbox: /var/folders/.../T/odysseus-xxxx
+
+=== run 1: without memory ===
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project.
+  -&gt; list_files()
+  &lt;- calc.py  ...  checks/check_calc.py  (3 lines)
+  -&gt; read_file(path='calc.py')
+  &lt;- 1	def average(values):  ...  3	    return sum(values) / (len(values) - 1)  (3 lines)
+  -&gt; edit_file(path='calc.py', old='(len(values) - 1)', new='len(values)')
+  ? approver: edit_file -&gt; yes
+  &lt;- Edited calc.py
+  -&gt; bash(command='python3 -m unittest')
+  ? approver: bash -&gt; yes
+  &lt;- ----------------------------------------------------------------------  ...  (exit 5)  (4 lines)
+assistant: No tests ran; the checks are not named test_*.py.
+  -&gt; bash(command="python3 -m unittest discover -s checks -p 'check_*.py' -t .")
+  ? approver: bash -&gt; yes
+  &lt;- .  ...  OK  (4 lines)
+  -&gt; remember(note="Checks live in checks/check_*.py, so plain 'python3 -m unittest' f...')
+  ? approver: remember -&gt; yes
+  &lt;- Remembered in AGENT_MEMORY.md
+assistant: Fixed average() and the check passes.
+
+memory section the model was given:
+  (none)
+
+AGENT_MEMORY.md after this run:
+  - Checks live in checks/check_*.py, so plain 'python3 -m unittest' finds none; run them with: python3 -m unittest discover -s checks -p 'check_*.py' -t .
+
+=== run 2: with memory ===
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project.
+  -&gt; read_file(path='calc.py')
+  &lt;- 1	def average(values):  ...  3	    return sum(values) / (len(values) - 1)  (3 lines)
+  -&gt; edit_file(path='calc.py', old='(len(values) - 1)', new='len(values)')
+  ? approver: edit_file -&gt; yes
+  &lt;- Edited calc.py
+  -&gt; bash(command="python3 -m unittest discover -s checks -p 'check_*.py' -t .")
+  ? approver: bash -&gt; yes
+  &lt;- .  ...  OK  (4 lines)
+assistant: Fixed average() and the check passes, using the command from project memory.
+
+memory section the model was given:
+  Project memory (AGENT_MEMORY.md):
+  - Checks live in checks/check_*.py, so plain 'python3 -m unittest' finds none; run them with: python3 -m unittest discover -s checks -p 'check_*.py' -t .
+
+AGENT_MEMORY.md after this run:
+  - Checks live in checks/check_*.py, so plain 'python3 -m unittest' finds none; run them with: python3 -m unittest discover -s checks -p 'check_*.py' -t .
+
+=== before / after ===
+                            without memory   with memory
+model calls                              7             4
+tool calls                               6             3
+wasted calls                             1             0
+tokens sent (estimate)                3247          1618
+tokens sent (reported)                   -             -
+checks pass                            yes           yes
+  wasted (without memory): bash: Ran 0 tests</code></pre>
+  <p class="dim">A live run is still to come; its output and analysis will be added here.</p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="analysis">Analysis</h2>
+  <h3>Before and after</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th class="num">without memory</th><th class="num">with memory</th></tr>
+      <tr><td>model calls</td><td class="num">7</td><td class="num">4</td></tr>
+      <tr><td>tool calls</td><td class="num">6</td><td class="num">3</td></tr>
+      <tr><td>wasted calls</td><td class="num">1</td><td class="num">0</td></tr>
+      <tr><td>tokens sent (estimate)</td><td class="num">3,247</td><td class="num">1,618</td></tr>
+      <tr><td>tokens sent (reported)</td><td class="num">-</td><td class="num">-</td></tr>
+      <tr><td>checks pass</td><td class="num">yes</td><td class="num">yes</td></tr>
+    </table>
+  </div>
+  <ul>
+    <li><strong>The difference is the discovery.</strong> Run 1 listed the files, ran plain
+        <code>unittest</code> (0 tests, wasted), then worked out the real command. Run 2 ran
+        the real command first time, because its system prompt already said what it was.</li>
+    <li><strong>The note crossed a conversation boundary.</strong> Run 2 shared no messages
+        with run 1. The only link is the file, which is the point of memory.</li>
+    <li><strong>Offline proves the plumbing, not the model.</strong> The scripted model
+        follows a script either way. What is real: <code>remember</code> wrote the file, and
+        the file reached run 2's system prompt.</li>
+  </ul>
+
+  <h3>What the live run will test</h3>
+  <ul>
+    <li>Does run 1 save a <em>useful</em> note, the command and why, rather than a summary of
+        the bug fix that will never matter again?</li>
+    <li>Does run 2 use the note straight away, or rediscover the command anyway?</li>
+    <li>Does run 2 save the same fact again? Duplicates are a cost: every line is in every
+        future prompt.</li>
+  </ul>
+
+  <h3>Something to watch</h3>
+  <div class="callout">
+    <p style="margin-top:0"><strong>A wrong note is worse than no note.</strong> Memory is
+      loaded into every session and trusted. If the agent saves something mistaken, or the
+      project changes and the note goes stale, every later session starts from the wrong
+      fact. <code>AGENT_MEMORY.md</code> is a plain file: read it, fix it, and commit it like
+      code.</p>
+    <p style="margin-bottom:0"><strong>Memory costs context on every call.</strong> Unlike a
+      skill, it is never loaded on demand. <code>memory.py</code> caps it at 20,000
+      characters and keeps the newest notes, but a long memory still makes every request
+      bigger. Keep notes short and few.</p>
+  </div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="next">Next steps</h2>
+  <ul>
+    <li><strong>Run it live</strong> and add the output and analysis here.</li>
+    <li><strong>Plant a stale note</strong> (the old, wrong command) before run 2, to see
+        whether the model trusts memory over what it observes.</li>
+    <li><strong>Run 1 in read-only mode</strong> to show <code>remember</code> blocked by the
+        gate, and run 2 starting with nothing.</li>
+  </ul>
+</main>
+</body>
+</html>

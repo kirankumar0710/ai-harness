@@ -109,11 +109,25 @@ def transcript(messages: Sequence[Message]) -> str:
         if role == "tool":
             status = " error" if message.get("is_error") else ""
             role = f"tool {message.get('name', '')}{status}".rstrip()
-        text = (message.get("text") or "")[:MAX_CHARS_PER_MESSAGE]
+        text = _shorten(message.get("text") or "")
         calls = "".join(f"\n  called {c['name']}({c['args']})"
                         for c in message.get("tool_calls", []))
         blocks.append(f"[{role}] {text}{calls}")
     return "\n\n".join(blocks)
+
+
+def _shorten(text: str) -> str:
+    """Cut a long message to its start and end, marking what was cut.
+
+    Long tool results usually end with what matters most - a test
+    summary, an error, a final value - so keeping only the start would
+    hide it from the summariser.
+    """
+    if len(text) <= MAX_CHARS_PER_MESSAGE:
+        return text
+    half = MAX_CHARS_PER_MESSAGE // 2
+    cut = len(text) - 2 * half
+    return f"{text[:half]}\n... ({cut} chars cut) ...\n{text[-half:]}"
 
 
 def _safe_cut(messages: Sequence[Message], cut: int) -> int:

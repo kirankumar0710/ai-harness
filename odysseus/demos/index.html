@@ -90,6 +90,29 @@
     <div class="tags"><span>skills</span><span>use_skill</span><span>run_task</span><span>runs offline</span></div>
   </a>
 
+  <a class="demo" href="memory/memory_walkthrough.html">
+    <h2>Memory: the same task, before and after</h2>
+    <p>
+      Runs one task twice in fresh conversations. The first has no memory and must
+      discover how this project runs its checks, then saves it with
+      <code>remember</code>; the second starts with that note in its system prompt.
+      A before/after table compares model calls, wasted calls and tokens. Runs
+      offline with <code>--offline</code>.
+    </p>
+    <div class="tags"><span>memory</span><span>AGENT_MEMORY.md</span><span>before / after</span><span>runs offline</span></div>
+  </a>
+
+  <a class="demo" href="context/context_walkthrough.html">
+    <h2>Context: the same long task, before and after compaction</h2>
+    <p>
+      Runs a long task (a chain of files read one at a time) with no size limit,
+      then with a small budget that forces compaction. A chart shows request size
+      growing without it and levelling off with it, and a table checks the answer
+      survived the summary. Runs offline with <code>--offline</code>.
+    </p>
+    <div class="tags"><span>compaction</span><span>token budget</span><span>before / after</span><span>runs offline</span></div>
+  </a>
+
   <footer>
     Demos make real API calls and need a provider and an API key (except
     with <code>--offline</code>); the unit

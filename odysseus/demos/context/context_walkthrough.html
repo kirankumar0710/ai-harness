@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Context Demo</title>
+  <style>
+    :root {
+      --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1f; --muted: #5f6368;
+      --border: #e2e2de; --accent: #2f5fd0; --code-bg: #f0f0ec;
+      --ok: #1e7a3c; --warn: #9a5b00; --warn-bg: #fff6e5; --bad: #b3261e;
+      --bar-a: #9aa3b5; --bar-b: #2f5fd0;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16171a; --surface: #1f2125; --text: #e8e8ea; --muted: #a0a4ab;
+        --border: #33363c; --accent: #8fb0ff; --code-bg: #2a2d33;
+        --ok: #6fd08f; --warn: #f0b45a; --warn-bg: #2e2716; --bad: #ff8a80;
+        --bar-a: #5d6472; --bar-b: #8fb0ff;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 2rem 1rem 4rem;
+      font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    main { max-width: 820px; margin: 0 auto; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    h1 { font-size: 1.9rem; margin: .75rem 0 .25rem; }
+    .lead { color: var(--muted); margin: 0 0 1.5rem; }
+    nav.toc { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .92rem;
+              padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.35rem; margin: 2.5rem 0 .75rem; }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; }
+    code { font: .88em ui-monospace, SFMono-Regular, Menlo, monospace;
+           background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem 1.1rem; overflow-x: auto;
+      font: .85rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; padding: 0; font-size: inherit; }
+    .dim { color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+    th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--border);
+             vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .ok { color: var(--ok); font-weight: 600; }
+    .bad { color: var(--bad); font-weight: 600; }
+    .callout {
+      background: var(--warn-bg); border-left: 4px solid var(--warn);
+      padding: .9rem 1.1rem; border-radius: 6px; margin: 1rem 0;
+    }
+    .callout strong { color: var(--warn); }
+    ol li, ul li { margin-bottom: .35rem; }
+    .bars td { padding: .2rem .5rem; border: 0; font-size: .85rem; }
+    .bar { height: .75rem; border-radius: 3px; }
+    .bar.a { background: var(--bar-a); }
+    .bar.b { background: var(--bar-b); }
+    .legend span { display: inline-flex; align-items: center; gap: .35rem; margin-right: 1rem;
+                   font-size: .88rem; color: var(--muted); }
+    .legend i { width: .9rem; height: .6rem; border-radius: 2px; display: inline-block; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="../index.html">← All demos</a>
+  <h1>Context: the same long task, before and after compaction</h1>
+  <p class="lead">
+    <code>demos/context/context.py</code> runs one long task twice: with no limit on the
+    conversation's size, then with a small budget that forces compaction. A chart and a table
+    at the end show what compaction saved, and whether the answer survived it.
+  </p>
+
+  <nav class="toc">
+    <a href="#goal">Goal</a>
+    <a href="#how">How it works</a>
+    <a href="#run">How to run</a>
+    <a href="#output">Sample output</a>
+    <a href="#analysis">Analysis</a>
+    <a href="#bug">Found by this demo</a>
+    <a href="#next">Next steps</a>
+  </nav>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="goal">Goal</h2>
+  <p>Every request sends the <em>whole</em> conversation so far. On a long task each request
+     is bigger than the last, until it no longer fits the model's context window, and the
+     total cost grows much faster than the work. <strong>Compaction</strong>
+     (<code>Compactor</code> in <code>context.py</code>) folds the oldest turns into a summary
+     the model writes, once the conversation passes a budget. The demo shows:</p>
+  <ol>
+    <li>without compaction, request size <strong>keeps growing</strong>;</li>
+    <li>with compaction, it <strong>levels off</strong> near the budget, and fewer tokens are
+        sent in total;</li>
+    <li>the agent <strong>still gets the right answer</strong>, even though the turns that
+        found most of it were replaced by a summary.</li>
+  </ol>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="how">How it works</h2>
+
+  <h3>A task that has to be long</h3>
+  <p>The project's <code>data/</code> folder holds a chain of 8 files. Each has 40
+     lines of filler, one <code>VALUE</code>, and the name of the <code>NEXT</code> file:</p>
+<pre><code><span class="dim"># data/start.txt   (2,165 characters)</span>
+Chain file 1.
+Log line 001: routine entry, nothing to act on here.
+Log line 002: routine entry, nothing to act on here.
+... (35 more filler lines) ...
+Log line 039: routine entry, nothing to act on here.
+Log line 040: routine entry, nothing to act on here.
+VALUE: 17
+NEXT: data/amber.txt</code></pre>
+  <p>Because each file names the next, the agent must read them one at a time: eight turns,
+     each adding about 650 tokens to the conversation. Four <strong>decoy</strong> files sit in
+     the same folder with values 100–400 that must not be counted. An agent that loses track
+     of which files were in the chain gets an obviously wrong total. The right total is
+     <strong>156</strong>.</p>
+  <p>The task, the same in both runs:</p>
+<pre><code>Start at data/start.txt. Each file in the chain has a VALUE and names the NEXT file to read. Follow the chain to the end, add up the VALUEs of the files in the chain only, and write the total to TOTAL.txt as a single number.</code></pre>
+
+  <h3>The two runs</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Run</th><th>Budget</th><th>What happens</th></tr>
+      <tr><td>1. without compaction</td><td>unlimited</td>
+          <td>Every file read stays in the conversation.</td></tr>
+      <tr><td>2. with compaction</td><td>2,500 tokens</td>
+          <td>Before each request, the compactor checks the size. Over budget, it keeps the
+              newest 6 messages and replaces everything older with a summary.</td></tr>
+    </table>
+  </div>
+
+  <h3>What compaction does to the conversation</h3>
+<pre><code><span class="dim">before (over budget)</span>                    <span class="dim">after</span>
+user: task                              user: [Conversation so far, compacted]
+assistant: read start.txt    ┐                <span class="dim">summary written by the model</span>
+tool: ...VALUE: 17...        │  folded        + the original task, merged in
+assistant: read amber.txt    │  into a  ───▶  assistant: read cedar.txt
+tool: ...VALUE: 42...        ┘  summary       tool: ...VALUE: 23...
+assistant: read cedar.txt    ┐                assistant: read delta.txt
+tool: ...VALUE: 23...        │  newest 6      tool: ...VALUE: 15...
+assistant: read delta.txt    │  messages      assistant: read ember.txt
+tool: ...VALUE: 15...        │  kept as       tool: ...VALUE: 4...
+assistant: read ember.txt    │  they are
+tool: ...VALUE: 4...         ┘</code></pre>
+  <p>Three rules keep the history valid for every vendor: the cut never separates a tool call
+     from its result, the conversation still starts with a user message, and two user
+     messages never sit side by side. The summary is asked to preserve the task, files
+     touched, decisions, errors and what remains:</p>
+<pre><code>You compress agent transcripts. Preserve: the original task, every file created or edited and its purpose, key decisions, unresolved errors, and what remains to be done. Be dense and factual.</code></pre>
+
+  <h3>How it is measured</h3>
+  <p>The demo wraps the provider in a <code>Meter</code> that records the size of every
+     request, the agent's and the compactor's summary requests, at four characters per token.
+     After each run it reads <code>TOTAL.txt</code>.</p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="run">How to run</h2>
+  <p>From the <code>odysseus</code> folder, after <code>pip install -e .</code>:</p>
+<pre><code>python3 demos/context/context.py --offline   # scripted model, no key needed
+python3 demos/context/context.py             # a real model; provider and key as in the dice demo</code></pre>
+  <p>Offline, the scripted model is honest about what it can see: the total it writes comes
+     only from the values still in its conversation (kept messages and summary), and its
+     summaries list only values visible in the transcript it was sent.</p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="output">Sample output</h2>
+  <h3>Offline run (scripted model)</h3>
+<pre><code>$ python3 demos/context/context.py --offline
+provider: offline - scripted replies
+
+=== run 1: without compaction ===
+user: Start at data/start.txt. Each file in the chain has a VALUE and names the NEXT file to read. Follow the chain to the end, add up the VALUEs of the files in the chain only, and write the total to TOTAL.txt as a single number.
+  -&gt; read_file(path='data/start.txt')
+  &lt;- 43 lines; VALUE: 17; NEXT: data/amber.txt
+  -&gt; read_file(path='data/amber.txt')
+  &lt;- 43 lines; VALUE: 42; NEXT: data/birch.txt
+  -&gt; read_file(path='data/birch.txt')
+  &lt;- 43 lines; VALUE: 8; NEXT: data/cedar.txt
+  -&gt; read_file(path='data/cedar.txt')
+  &lt;- 43 lines; VALUE: 23; NEXT: data/delta.txt
+  -&gt; read_file(path='data/delta.txt')
+  &lt;- 43 lines; VALUE: 15; NEXT: data/ember.txt
+  -&gt; read_file(path='data/ember.txt')
+  &lt;- 43 lines; VALUE: 4; NEXT: data/fjord.txt
+  -&gt; read_file(path='data/fjord.txt')
+  &lt;- 43 lines; VALUE: 16; NEXT: data/grove.txt
+  -&gt; read_file(path='data/grove.txt')
+  &lt;- 43 lines; VALUE: 31; NEXT: none
+assistant: Total of the VALUEs I can see: 156.
+  -&gt; write_file(path='TOTAL.txt', content='156\n')
+  ? approver: write_file -&gt; yes
+  &lt;- Wrote 4 chars to TOTAL.txt
+assistant: Done: the total is in TOTAL.txt.
+
+request sizes (estimated tokens), in order:
+  241 886 1531 2176 2821 3467 4112 4757 5409 5481
+
+=== run 2: with compaction ===
+user: Start at data/start.txt. Each file in the chain has a VALUE and names the NEXT file to read. Follow the chain to the end, add up the VALUEs of the files in the chain only, and write the total to TOTAL.txt as a single number.
+  -&gt; read_file(path='data/start.txt')
+  &lt;- 43 lines; VALUE: 17; NEXT: data/amber.txt
+  -&gt; read_file(path='data/amber.txt')
+  &lt;- 43 lines; VALUE: 42; NEXT: data/birch.txt
+  -&gt; read_file(path='data/birch.txt')
+  &lt;- 43 lines; VALUE: 8; NEXT: data/cedar.txt
+  -&gt; read_file(path='data/cedar.txt')
+  &lt;- 43 lines; VALUE: 23; NEXT: data/delta.txt
+  ** compacted: 3 messages folded, ~2643 -&gt; ~1989 tokens
+  -&gt; read_file(path='data/delta.txt')
+  &lt;- 43 lines; VALUE: 15; NEXT: data/ember.txt
+  ** compacted: 3 messages folded, ~2634 -&gt; ~1994 tokens
+  -&gt; read_file(path='data/ember.txt')
+  &lt;- 43 lines; VALUE: 4; NEXT: data/fjord.txt
+  ** compacted: 3 messages folded, ~2639 -&gt; ~1998 tokens
+  -&gt; read_file(path='data/fjord.txt')
+  &lt;- 43 lines; VALUE: 16; NEXT: data/grove.txt
+  ** compacted: 3 messages folded, ~2643 -&gt; ~2003 tokens
+  -&gt; read_file(path='data/grove.txt')
+  &lt;- 43 lines; VALUE: 31; NEXT: none
+  ** compacted: 3 messages folded, ~2655 -&gt; ~2015 tokens
+assistant: Total of the VALUEs I can see: 156.
+  -&gt; write_file(path='TOTAL.txt', content='156\n')
+  ? approver: write_file -&gt; yes
+  &lt;- Wrote 4 chars to TOTAL.txt
+assistant: Done: the total is in TOTAL.txt.
+
+the summary the conversation now starts with:
+  [Conversation so far, compacted]
+  Task: follow the chain from data/start.txt, sum the VALUEs of chain files only, write TOTAL.txt.
+  Files read so far: data/start.txt=17, data/amber.txt=42, data/birch.txt=8, data/cedar.txt=23, data/delta.txt=15
+  Running total: 105
+
+request sizes (estimated tokens), in order:
+  241 886 1531 2176 2167 2172 2176 2181 2193 2265
+
+=== before / after ===
+                            without compaction   with compaction
+agent requests                              10                10
+compactions                                  0                 5
+largest request                           5481              2265
+messages at the end                         20                10
+tokens sent (estimate)                   30881             21309
+tokens sent (reported)                       -                 -
+TOTAL.txt                                  156               156
+correct                                    yes               yes
+(compaction budget: 2500 tokens; expected total: 156)</code></pre>
+  <p class="dim">A live run is still to come; its output and analysis will be added here.</p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="analysis">Analysis</h2>
+  <h3>Request size, request by request</h3>
+  <p class="legend"><span><i style="background:var(--bar-a)"></i>without compaction</span>
+     <span><i style="background:var(--bar-b)"></i>with compaction (budget 2,500)</span></p>
+  <div class="table-wrap">
+    <table class="bars">
+      <tr><th class="num">request</th><th></th><th class="num">tokens (without / with)</th></tr>
+      <tr><td class="num">1</td><td style="width:100%"><div class="bar a" style="width:4.4%"></div><div class="bar b" style="width:4.4%"></div></td><td class="num">241 / 241</td></tr>
+      <tr><td class="num">2</td><td style="width:100%"><div class="bar a" style="width:16.2%"></div><div class="bar b" style="width:16.2%"></div></td><td class="num">886 / 886</td></tr>
+      <tr><td class="num">3</td><td style="width:100%"><div class="bar a" style="width:27.9%"></div><div class="bar b" style="width:27.9%"></div></td><td class="num">1,531 / 1,531</td></tr>
+      <tr><td class="num">4</td><td style="width:100%"><div class="bar a" style="width:39.7%"></div><div class="bar b" style="width:39.7%"></div></td><td class="num">2,176 / 2,176</td></tr>
+      <tr><td class="num">5</td><td style="width:100%"><div class="bar a" style="width:51.5%"></div><div class="bar b" style="width:39.5%"></div></td><td class="num">2,821 / 2,167</td></tr>
+      <tr><td class="num">6</td><td style="width:100%"><div class="bar a" style="width:63.3%"></div><div class="bar b" style="width:39.6%"></div></td><td class="num">3,467 / 2,172</td></tr>
+      <tr><td class="num">7</td><td style="width:100%"><div class="bar a" style="width:75.0%"></div><div class="bar b" style="width:39.7%"></div></td><td class="num">4,112 / 2,176</td></tr>
+      <tr><td class="num">8</td><td style="width:100%"><div class="bar a" style="width:86.8%"></div><div class="bar b" style="width:39.8%"></div></td><td class="num">4,757 / 2,181</td></tr>
+      <tr><td class="num">9</td><td style="width:100%"><div class="bar a" style="width:98.7%"></div><div class="bar b" style="width:40.0%"></div></td><td class="num">5,409 / 2,193</td></tr>
+      <tr><td class="num">10</td><td style="width:100%"><div class="bar a" style="width:100.0%"></div><div class="bar b" style="width:41.3%"></div></td><td class="num">5,481 / 2,265</td></tr>
+    </table>
+  </div>
+  <p>Without compaction the size climbs by about 650 tokens per file read. With compaction it
+     follows the same line until it passes the budget at the fifth request, then stays
+     level: each new file read is offset by older turns folded away.</p>
+
+  <h3>Before and after</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
+      <tr><td>agent requests</td><td class="num">10</td><td class="num">10</td></tr>
+      <tr><td>compactions</td><td class="num">0</td><td class="num">5</td></tr>
+      <tr><td>largest request</td><td class="num">5,481</td><td class="num">2,265</td></tr>
+      <tr><td>messages at the end</td><td class="num">20</td><td class="num">10</td></tr>
+      <tr><td>tokens sent (estimate)</td><td class="num">30,881</td><td class="num">21,309</td></tr>
+      <tr><td>tokens sent (reported)</td><td class="num">-</td><td class="num">-</td></tr>
+      <tr><td>TOTAL.txt</td><td class="num">156</td><td class="num">156</td></tr>
+      <tr><td>correct</td><td class="num">yes</td><td class="num">yes</td></tr>
+    </table>
+  </div>
+  <ul>
+    <li><strong>Largest request:</strong> less than half. On a longer task the gap keeps
+        widening: without compaction it grows with every step; with it, it stays near the
+        budget, so the task never outgrows the context window.</li>
+    <li><strong>Total tokens:</strong> about a third fewer, <em>including</em> the summary
+        requests. Summaries are not free: each compaction is an extra model call.</li>
+    <li><strong>The answer survived.</strong> The final summary still lists every value
+        folded so far, so the total is right with only 10 messages left instead of 20.</li>
+  </ul>
+
+  <h2 id="bug">Found by this demo</h2>
+  <p>The first offline run of this demo gave <span class="bad">TOTAL.txt = 51</span> with
+     compaction: only the last three files' values (4 + 16 + 31). The summary read
+     <code>Files read so far:</code> with nothing after it.</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Cause</th><th>Fix</th></tr>
+      <tr><td>Before summarising, <code>transcript()</code> cut every message to its
+              <strong>first</strong> 2,000 characters. Each chain file comes back from
+              <code>read_file</code> as about 2,300, with
+              <code>VALUE</code> and <code>NEXT</code> at the end, so the summariser never saw
+              them. The original Day 3 code had the same <code>[:2000]</code>.</td>
+          <td><code>_shorten()</code> keeps the first and last 1,000 characters and marks the
+              middle as cut, as the <code>bash</code> tool already does with long output. Long
+              tool results usually end with what matters: a test summary, an error, a final
+              value. New unit test.</td></tr>
+    </table>
+  </div>
+  <p>The size savings were the same before and after the fix. Only the answer changed, which
+     is why a compaction demo has to check the result, not just the token count.</p>
+
+  <h3>Something to watch</h3>
+  <div class="callout">
+    <p style="margin-top:0"><strong>Compaction is lossy, and the model decides what is
+      lost.</strong> The summary prompt asks for the task, files, decisions and errors. It
+      does not mention intermediate results like the values here. A live model may keep them,
+      or may write “read five files” and lose the numbers. If a task depends on details found
+      along the way, the summary prompt has to say so, or the agent should write them to a
+      file as it goes.</p>
+    <p style="margin-bottom:0"><strong>The budget is an estimate.</strong> Four characters per
+      token is rough; code and non-English text use more tokens per character. Set the budget
+      well below the model's real context window.</p>
+  </div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="next">Next steps</h2>
+  <ul>
+    <li><strong>Run it live</strong> and add the output and analysis here. The question that
+        matters: does a real model's summary keep the values?</li>
+    <li><strong>Make <code>keep_recent</code> a <code>run_task()</code> option</strong>; today
+        only the budget can be set from there.</li>
+    <li><strong>Try a summary prompt that names intermediate results</strong> if a live run
+        loses the values.</li>
+  </ul>
+</main>
+</body>
+</html>

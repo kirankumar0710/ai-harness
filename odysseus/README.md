@@ -180,10 +180,16 @@ odysseus
 │   ├── gate                           six core tools through every permission mode
 │   │   ├── gate.py                    the demo script (--offline needs no API key)
 │   │   └── gate_walkthrough.html      goal, how to run, sample output, analysis
-│   └── skills                         two skills, three tasks: loaded only when relevant
-│       ├── skills.py                  the demo script (--offline needs no API key)
-│       ├── skills_walkthrough.html    goal, how to run, sample output, analysis
-│       └── example_skills/            release-note and review-migration SKILL.md files
+│   ├── skills                         two skills, three tasks: loaded only when relevant
+│   │   ├── skills.py                  the demo script (--offline needs no API key)
+│   │   ├── skills_walkthrough.html    goal, how to run, sample output, analysis
+│   │   └── example_skills/            release-note and review-migration SKILL.md files
+│   ├── memory                         one task twice: without and with AGENT_MEMORY.md
+│   │   ├── memory.py                  the demo script (--offline needs no API key)
+│   │   └── memory_walkthrough.html    goal, how to run, sample output, analysis
+│   └── context                        one long task twice: without and with compaction
+│       ├── context.py                 the demo script (--offline needs no API key)
+│       └── context_walkthrough.html   goal, how to run, sample output, analysis
 └── tests
     ├── test_harness.py                offline tests (fake transport, no network)
     ├── test_tools_security.py         tool contracts, path jail, permission gate

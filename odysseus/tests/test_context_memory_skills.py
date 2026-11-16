@@ -10,7 +10,8 @@ import tempfile
 import unittest
 
 from odysseus_v2 import Compactor, build_system_prompt, run_loop, run_task
-from odysseus_v2.context import SUMMARY_HEADER, estimate_tokens
+from odysseus_v2.context import (MAX_CHARS_PER_MESSAGE, SUMMARY_HEADER,
+                                 estimate_tokens, transcript)
 from odysseus_v2.memory import MAX_MEMORY_CHARS, MEMORY_FILE, memory_tools
 from odysseus_v2.providers import Completion, Provider
 from odysseus_v2.security import Policy
@@ -122,6 +123,14 @@ class CompactorTests(unittest.TestCase):
         self.assertEqual(len(compacted), 1)
         self.assertTrue(compacted[0]["text"].startswith(SUMMARY_HEADER))
         self.assertTrue(compacted[0]["text"].endswith("Now add tests."))
+
+    def test_transcript_keeps_the_end_of_long_messages(self):
+        long_result = "start\n" + "filler\n" * 1000 + "VALUE: 42\n"
+        text = transcript([result("c1", long_result)])
+        self.assertIn("start", text)
+        self.assertIn("VALUE: 42", text)
+        self.assertIn("chars cut", text)
+        self.assertLess(len(text), MAX_CHARS_PER_MESSAGE + 100)
 
     def test_too_little_history_is_left_alone(self):
         provider = ScriptedProvider([])
