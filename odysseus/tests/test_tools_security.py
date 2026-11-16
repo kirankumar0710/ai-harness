@@ -8,10 +8,11 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from odysseus_v2 import Policy, core_tools, run_loop, tool, tool_map
 from odysseus_v2.providers import Completion, Provider
-from odysseus_v2.security import approve_all
+from odysseus_v2.security import approve_all, console_approver
 
 
 class ScriptedProvider(Provider):
@@ -122,6 +123,21 @@ class CoreToolTests(unittest.TestCase):
         self.assertEqual(self.run_tool("list_files", pattern="pkg/**/*.py"),
                          os.path.join("pkg", "deep", "x.py"))
 
+    def test_bash_does_not_see_the_harness_secrets(self):
+        secrets = {"ODYSSEUS_API_KEY": "sk-secret-1",
+                   "ANTHROPIC_API_KEY": "sk-secret-2"}
+        with mock.patch.dict(os.environ, secrets):
+            tools = tool_map(core_tools(self.tmp.name))
+            shown = tools["bash"].run(command="env")
+        self.assertNotIn("sk-secret", shown)
+        self.assertIn("PATH=", shown)
+
+    def test_shell_env_adds_variables_on_request(self):
+        tools = tool_map(core_tools(self.tmp.name,
+                                    shell_env={"CALC_MODE": "strict"}))
+        self.assertEqual(tools["bash"].run(command="echo $CALC_MODE"),
+                         "strict")
+
     def test_list_grep_and_bash(self):
         self.run_tool("write_file", path="src/x.py", content="import os\n")
         self.assertEqual(self.run_tool("list_files", pattern="*.py"),
@@ -154,6 +170,14 @@ class PolicyTests(unittest.TestCase):
         self.assertIn("read-only",
                       policy.check(call("write_file", path="a", content="")))
 
+    def test_read_only_reason_lists_only_available_read_tools(self):
+        policy = Policy("read-only", available={"read_file", "grep", "bash"})
+        reason = policy.check(call("bash", command="ls"))
+        self.assertIn("only grep, read_file are allowed", reason)
+        self.assertNotIn("use_skill", reason)
+        none = Policy("read-only", available={"bash"})
+        self.assertIn("no available tool", none.check(call("bash")))
+
     def test_safe_mode_asks_the_approver(self):
         asked = []
 
@@ -168,6 +192,24 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(policy.check(call("bash", command="ls")),
                          "not approved by user")
         self.assertEqual(asked, ["write_file", "bash"])
+
+    def test_an_approver_can_refuse_with_a_reason(self):
+        policy = Policy("safe", lambda c, r: "only unittest commands")
+        self.assertEqual(policy.check(call("bash", command="ls")),
+                         "not approved: only unittest commands")
+        silent = Policy("safe", lambda c, r: "  ")
+        self.assertEqual(silent.check(call("bash", command="ls")),
+                         "not approved by user")
+
+    def test_console_approver_prints_its_decision(self):
+        call_ = call("bash", command="ls")
+        for typed, approved in (("y", True), ("n", False), ("", False)):
+            with self.subTest(typed=typed), \
+                    mock.patch("builtins.input", return_value=typed), \
+                    mock.patch("builtins.print") as shown:
+                self.assertIs(console_approver(call_, "side effect"), approved)
+                decision = "approved" if approved else "refused"
+                shown.assert_called_with(f"  -> {decision} by the user")
 
     def test_a_crashing_approver_blocks(self):
         def broken(c, reason):

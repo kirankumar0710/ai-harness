@@ -12,17 +12,20 @@
 See memory_walkthrough.html next to this file for the goal, a sample run
 and an analysis of its output.
 
-The throwaway project hides one fact you cannot guess: its checks live
-in checks/check_*.py, so plain "python3 -m unittest" finds no tests at
-all. The right command is
+The throwaway project hides two facts. Its checks live in
+checks/check_*.py, which the default test discovery does not look for,
+and they only run with CALC_CHECKS=1 set (checks/__init__.py enforces
+it). The second can only be learned by running the checks and reading
+the error, or by opening a file models rarely open. The right command is
 
-    python3 -m unittest discover -s checks -p 'check_*.py' -t .
+    CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .
 
 The demo runs the same task twice, each in a fresh conversation:
 
     run 1  without memory   no AGENT_MEMORY.md; the agent must discover
                             the command, and is asked to save what a
-                            future session needs with remember
+                            future session needs with remember (unless
+                            it is already in memory)
     run 2  with memory      calc.py is reset to the buggy version, but
                             AGENT_MEMORY.md from run 1 is kept and loaded
                             into the system prompt
@@ -44,16 +47,24 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from odysseus_v2 import create_provider, run_task
-from odysseus_v2.context import estimate_tokens
+from odysseus_v2.context import estimate_overhead, estimate_tokens
 from odysseus_v2.memory import MEMORY_FILE, load_memory
 from odysseus_v2.providers import Completion, ConfigError, Provider
 
-CHECK_COMMAND = "python3 -m unittest discover -s checks -p 'check_*.py' -t ."
+CHECK_COMMAND = ("CALC_CHECKS=1 python3 -m unittest discover -s checks "
+                 "-p 'check_*.py' -t .")
+
+CHECKS_INIT = '''\
+import os
+
+if os.environ.get("CALC_CHECKS") != "1":
+    raise ImportError("these checks only run with CALC_CHECKS=1 set")
+'''
 
 TASK = ("The checks for this project fail. Fix the bug in calc.py and "
         "confirm the checks pass. Before you finish, use the remember tool "
         "to save anything a future session would need to know about "
-        "working in this project.")
+        "working in this project, unless it is already in project memory.")
 
 BUGGY_CALC = '''\
 def average(values):
@@ -74,15 +85,32 @@ class AverageCheck(unittest.TestCase):
 
 PROJECT_FILES = {
     "calc.py": BUGGY_CALC,
-    "checks/__init__.py": "",
+    "checks/__init__.py": CHECKS_INIT,
     "checks/check_calc.py": CHECK_CALC,
 }
 
-# The approver allows file changes, remember, and plain unittest runs.
+# The approver allows file changes, remember, and unittest runs. A test
+# command may end with "2>&1" and/or "| tail -N" / "| head -N" (only
+# showing output); any other shell operator means a second command.
 UNITTEST = re.compile(r"\s*python3?\s+-m\s+unittest\b[^;&|`$<>()\n]*")
+SETTINGS = re.compile(r"^\s*([A-Z_][A-Z0-9_]*=[\w.-]*\s+)+")   # VAR=value
+OUTPUT_ONLY = re.compile(
+    r"\s*(2>&1)?\s*(\|\s*(tail|head)((\s+-n)?\s+-?\d+)?)?\s*$")
 
 # A tool result that means the call achieved nothing.
-WASTED = re.compile(r"NO TESTS RAN|Ran 0 tests|^ERROR|^BLOCKED", re.M)
+# Tool results that mean the call achieved nothing, most telling first.
+WASTED = [re.compile(p, re.M) for p in (
+    r"ImportError: [^\n]*CALC_CHECKS[^\n]*", r"NO TESTS RAN", r"Ran 0 tests",
+    r"FAILED \(errors=\d+\)", r"^BLOCKED[^\n]*", r"^ERROR[^\n]*")]
+
+
+def wasted_reason(result: str) -> str | None:
+    """Why a tool result achieved nothing, or None if it did something."""
+    for pattern in WASTED:
+        found = pattern.search(result)
+        if found:
+            return found.group(0)[:80]
+    return None
 
 
 # --------------------------------------------------------------------------
@@ -112,13 +140,31 @@ def checks_pass(project: str) -> bool:
     return done.returncode == 0
 
 
-def approver(call: Mapping[str, Any], reason: str) -> bool:
+def is_test_command(command: str) -> bool:
+    """A unittest run, optionally with its output trimmed, and nothing else."""
+    core = OUTPUT_ONLY.sub("", SETTINGS.sub("", command, count=1), count=1)
+    return bool(UNITTEST.fullmatch(core))
+
+
+TEST_RULE = ("only 'python3 -m unittest ...' commands are approved; they "
+             "may start with VAR=value settings and end with 2>&1 or "
+             "| tail -N, but nothing else")
+
+
+def approver(call: Mapping[str, Any], reason: str) -> bool | str:
+    """Approve edits, remember and test runs; refuse the rest, saying why."""
     name = call["name"]
     command = str(call["args"].get("command", ""))
-    approved = (name in {"write_file", "edit_file", "remember"}
-                or (name == "bash" and bool(UNITTEST.fullmatch(command))))
-    print(f"  ? approver: {name} -> {'yes' if approved else 'no'}")
-    return approved
+    if name in {"write_file", "edit_file", "remember"}:
+        answer: bool | str = True
+    elif name == "bash" and is_test_command(command):
+        answer = True
+    elif name == "bash":
+        answer = TEST_RULE
+    else:
+        answer = f"{name} is not on this approver's allowlist"
+    print(f"  ? approver: {name} -> {'yes' if answer is True else 'no'}")
+    return answer
 
 
 class Meter(Provider):
@@ -134,7 +180,7 @@ class Meter(Provider):
                  allow_tool_calls=True) -> Completion:
         self.systems.append(system)
         self.sizes.append(estimate_tokens(messages)
-                          + len(system) // 4)
+                          + estimate_overhead(system, tools))
         reply = self.inner.complete(system, messages, tools,
                                     allow_tool_calls=allow_tool_calls)
         self.input_tokens += reply["usage"]["input"]
@@ -167,9 +213,9 @@ class Recorder:
             print(f"  -> {payload['name']}({_short(payload['args'])})")
         elif kind == "tool_end":
             result = payload["result"]
-            why = WASTED.search(result)
+            why = wasted_reason(result)
             if payload["is_error"] or why:
-                reason = why.group(0) if why else _last_line(result)
+                reason = why or _last_line(result)
                 self.wasted.append(f"{payload['name']}: {reason}")
             lines = [ln for ln in result.splitlines() if ln.strip()]
             lines = lines or ["(empty)"]
@@ -184,7 +230,7 @@ def _short(args: Mapping[str, Any]) -> str:
     parts = []
     for key, value in args.items():
         text = repr(value)
-        if len(text) > 70:
+        if key != "command" and len(text) > 70:   # commands in full
             text = text[:67].replace("\\n", " ") + "...'"
         parts.append(f"{key}={text}")
     return ", ".join(parts)
@@ -209,8 +255,8 @@ def _reply(text: str = "", *calls: tuple[str, dict[str, Any]]) -> Completion:
 
 FIX = ("edit_file", {"path": "calc.py", "old": "(len(values) - 1)",
                      "new": "len(values)"})
-NOTE = ("Checks live in checks/check_*.py, so plain 'python3 -m unittest' "
-        f"finds none; run them with: {CHECK_COMMAND}")
+NOTE = ("Checks live in checks/check_*.py and only run with CALC_CHECKS=1 "
+        f"set; run them with: {CHECK_COMMAND}")
 
 OFFLINE_SCRIPTS = {
     "without memory": [
@@ -218,7 +264,8 @@ OFFLINE_SCRIPTS = {
         _reply("", ("read_file", {"path": "calc.py"})),
         _reply("", FIX),
         _reply("", ("bash", {"command": "python3 -m unittest"})),
-        _reply("No tests ran; the checks are not named test_*.py.",
+        _reply("The checks package refuses to load without CALC_CHECKS=1, "
+               "and the checks are named check_*.py.",
                ("bash", {"command": CHECK_COMMAND})),
         _reply("", ("remember", {"note": NOTE})),
         _reply("Fixed average() and the check passes."),

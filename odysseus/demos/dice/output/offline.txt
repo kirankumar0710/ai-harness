@@ -1,0 +1,15 @@
+# dice demo, recorded 2026-11-16, provider: offline - scripted replies, exit code 0
+
+$ python3 demos/dice/dice.py --offline
+provider: offline - scripted replies
+
+user: Roll 3 dice and tell me whether the total beats 10.
+  -> roll_dice({'count': 3})
+  <- [1, 5, 6]
+assistant: I rolled 1, 5, 6: the total is 12, which beats 10.
+(4 messages in the array)
+
+user: Build a landing page for a coffee shop.
+assistant: I can only roll dice here, so I can't build a page. I can describe one: a hero with the shop's name, a menu, opening hours and a map.
+(2 messages in the array)
+

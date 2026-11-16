@@ -121,4 +121,5 @@ class AnthropicProvider(Provider):
             tool_calls=tool_calls,
             usage={"input": usage.get("input_tokens", 0),
                    "output": usage.get("output_tokens", 0)},
+            truncated=raw.get("stop_reason") == "max_tokens",
         )

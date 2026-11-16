@@ -177,6 +177,54 @@ class LoopTests(unittest.TestCase):
 # --------------------------------------------------------------------------
 
 
+class TruncationTests(unittest.TestCase):
+    """A reply cut off at the output limit is reported, never silent."""
+
+    def test_each_vendor_signal_sets_truncated(self):
+        cases = [
+            (AnthropicProvider, AnthropicConfig,
+             {"content": [{"type": "text", "text": "half"}],
+              "stop_reason": "max_tokens"}),
+            (GeminiProvider, GeminiConfig,
+             {"candidates": [{"content": {"parts": [{"text": "half"}]},
+                              "finishReason": "MAX_TOKENS"}]}),
+            (OpenRouterProvider, OpenRouterConfig,
+             {"choices": [{"message": {"content": "half"},
+                           "finish_reason": "length"}]}),
+        ]
+        for provider_class, config_class, raw in cases:
+            with self.subTest(provider=provider_class.__name__):
+                provider = provider_class(
+                    config_class(api_key="k", model="m", base_url="u"),
+                    transport=RecordingTransport(raw))
+                self.assertTrue(provider.complete("", [])["truncated"])
+                raw_done = dict(raw, stop_reason="end_turn")
+                if "candidates" in raw:
+                    raw_done = {"candidates": [dict(raw["candidates"][0],
+                                                    finishReason="STOP")]}
+                if "choices" in raw:
+                    raw_done = {"choices": [dict(raw["choices"][0],
+                                                 finish_reason="stop")]}
+                provider = provider_class(
+                    config_class(api_key="k", model="m", base_url="u"),
+                    transport=RecordingTransport(raw_done))
+                self.assertFalse(provider.complete("", [])["truncated"])
+
+    def test_loop_warns_and_marks_the_answer(self):
+        cut = reply("The page ends here <di")
+        cut["truncated"] = True
+        provider = ScriptedProvider([cut])
+        events = []
+        messages = [{"role": "user", "text": "build"}]
+        answer = run_loop(provider, "", messages, {},
+                          on_event=lambda k, p: events.append(k))
+        self.assertIn("truncated", events)
+        self.assertTrue(answer.endswith(
+            "cut off at the model's output-token limit; it may be "
+            "incomplete.]"))
+        self.assertEqual(messages[-1]["text"], "The page ends here <di")
+
+
 class ConfigTests(unittest.TestCase):
     def test_vendor_key_wins_over_generic_key(self):
         env = {"GEMINI_API_KEY": "vendor", "ODYSSEUS_API_KEY": "generic"}

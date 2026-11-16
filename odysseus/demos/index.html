@@ -116,7 +116,11 @@
   <footer>
     Demos make real API calls and need a provider and an API key (except
     with <code>--offline</code>); the unit
-    tests (<code>python3 -m unittest discover tests</code>) do not.
+    tests (<code>python3 -m unittest discover tests</code>) do not. Each demo's
+    <code>output/</code> folder holds the complete output of its recorded runs; save a
+    new one with <code>python3 demos/record.py &lt;demo&gt; [--offline]</code>, or run
+    them all with <code>demos/run.sh</code> (<code>offline</code>, <code>live</code> or both),
+    which saves every run to <code>demos/runs/&lt;timestamp&gt;/</code>.
   </footer>
 </main>
 </body>

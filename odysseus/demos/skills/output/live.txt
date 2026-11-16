@@ -1,0 +1,67 @@
+# skills demo, recorded 2026-11-16, provider: anthropic - claude-sonnet-5-5, exit code 0
+
+$ python3 demos/skills/skills.py
+provider: anthropic - claude-sonnet-5-5
+
+sandbox: <tmp>/odysseus-skills-txau845e
+skills: release-note, review-migration  (1517 chars on disk, 214 chars in every system prompt)
+
+=== task 1: release note ===
+user: We fixed a bug in calc.py: average() divided by len(values) - 1 instead of len(values), so every average came out too high. Add a release note for version 1.0.1, dated 2026-11-16.
+  [tokens in 1696, out 73]
+  -> use_skill(name='release-note')
+  <- ---  ...  - Never edit or reorder older entries.  (16 lines)
+  -> list_files()
+  <- RELEASE_NOTES.md  ...  skills/review-migration/SKILL.md  (5 lines)
+  [tokens in 2130, out 58]
+  -> read_file(path='RELEASE_NOTES.md')
+  <- 1	# Release notes
+  [tokens in 2201, out 151]
+  -> write_file(path='RELEASE_NOTES.md', content='# Release notes  ## 1.0.1 - 2026-11-16 ### Fixed - F...')
+  ? approver: write_file -> yes
+  <- Wrote 190 chars to RELEASE_NOTES.md
+assistant: I added the 1.0.1 entry, dated 2026-11-16, to `RELEASE_NOTES.md` directly under the "# Release notes" heading. I didn't read the file back after writing it.
+
+The entry follows the format in the release-note skill:
+
+```
+## 1.0.1 - 2026-11-16
+### Fixed
+- Fixed averages coming out too high because the total was divided by one less than the number of values (calc.py)
+Upgrade: no action needed
+```
+
+The file had no older entries, so there was nothing to reorder. I marked the upgrade as "no action needed" because this is a calculation fix and users don't have to change anything. I didn't open `calc.py`, so the note rests on your description of the bug.
+  [tokens in 2379, out 262]
+
+=== task 2: question ===
+user: In one sentence: what does average() in calc.py return?
+  [tokens in 1648, out 121]
+  -> grep(regex='def average', pattern='calc.py')
+  <- calc.py:1: def average(values):
+  -> read_file(path='calc.py')
+  <- 1	def average(values):  ...  3	    return sum(values) / len(values)  (3 lines)
+assistant: `average()` returns the arithmetic mean of a non-empty list of numbers, computed as `sum(values) / len(values)`. It will raise a `ZeroDivisionError` if you pass it an empty list.
+  [tokens in 1887, out 70]
+
+=== task 3: migration review ===
+user: Review the migration migrations/0002_add_email.up.sql.
+  [tokens in 1652, out 159]
+  -> use_skill(name='review-migration')
+  <- ---  ...  the author fixes it.  (19 lines)
+  -> read_file(path='migrations/0002_add_email.up.sql')
+  <- 1	-- 0002: give users an email address and link orders to users  ...  3	ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES u  (3 lines)
+  -> list_files(pattern='migrations/*')
+  <- migrations/0002_add_email.up.sql
+assistant: 1. Reversible: FAIL - there is no `migrations/0002_add_email.down.sql`. Only the up migration exists.
+2. Locking: FAIL - `ALTER TABLE users ADD COLUMN email TEXT NOT NULL` has no DEFAULT. It fails or locks on a `users` table that already has rows.
+3. Indexes: FAIL - the new foreign key column `orders.user_id` has no index.
+4. Data: PASS - it only adds columns. It doesn't delete or rewrite existing rows.
+
+Verdict: REQUEST CHANGES
+  [tokens in 2297, out 195]
+
+=== summary ===
+task 1 (release note): skills loaded ['release-note'] - as expected; entry in the skill's format: yes
+task 2 (question): skills loaded none - as expected; no format to check
+task 3 (migration review): skills loaded ['review-migration'] - as expected; 4 checks + verdict: yes (4 check lines, verdict REQUEST CHANGES)

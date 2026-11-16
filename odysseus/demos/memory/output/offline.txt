@@ -1,0 +1,62 @@
+# memory demo, recorded 2026-11-16, provider: offline - scripted replies, exit code 0
+
+$ python3 demos/memory/memory.py --offline
+provider: offline - scripted replies
+
+sandbox: <tmp>/odysseus-memory-0ai_y8yu
+
+=== run 1: without memory ===
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project, unless it is already in project memory.
+  -> list_files()
+  <- calc.py  ...  checks/check_calc.py  (3 lines)
+  -> read_file(path='calc.py')
+  <- 1	def average(values):  ...  3	    return sum(values) / (len(values) - 1)  (3 lines)
+  -> edit_file(path='calc.py', old='(len(values) - 1)', new='len(values)')
+  ? approver: edit_file -> yes
+  <- Edited calc.py
+  -> bash(command='python3 -m unittest')
+  ? approver: bash -> yes
+  <- E  ...  (exit 1)  (18 lines)
+assistant: The checks package refuses to load without CALC_CHECKS=1, and the checks are named check_*.py.
+  -> bash(command="CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .")
+  ? approver: bash -> yes
+  <- .  ...  OK  (4 lines)
+  -> remember(note="Checks live in checks/check_*.py and only run with CALC_CHECKS=1 s...')
+  ? approver: remember -> yes
+  <- Remembered in AGENT_MEMORY.md
+assistant: Fixed average() and the check passes.
+
+memory section the model was given:
+  Project memory (AGENT_MEMORY.md): none yet. Nothing has been saved for this project.
+
+AGENT_MEMORY.md after this run:
+  - Checks live in checks/check_*.py and only run with CALC_CHECKS=1 set; run them with: CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .
+
+=== run 2: with memory ===
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project, unless it is already in project memory.
+  -> read_file(path='calc.py')
+  <- 1	def average(values):  ...  3	    return sum(values) / (len(values) - 1)  (3 lines)
+  -> edit_file(path='calc.py', old='(len(values) - 1)', new='len(values)')
+  ? approver: edit_file -> yes
+  <- Edited calc.py
+  -> bash(command="CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .")
+  ? approver: bash -> yes
+  <- .  ...  OK  (4 lines)
+assistant: Fixed average() and the check passes, using the command from project memory.
+
+memory section the model was given:
+  Project memory (AGENT_MEMORY.md):
+  - Checks live in checks/check_*.py and only run with CALC_CHECKS=1 set; run them with: CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .
+
+AGENT_MEMORY.md after this run:
+  - Checks live in checks/check_*.py and only run with CALC_CHECKS=1 set; run them with: CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .
+
+=== before / after ===
+                            without memory   with memory
+model calls                              7             4
+tool calls                               6             3
+wasted calls                             1             0
+tokens sent (estimate)                9176          4518
+tokens sent (reported)                   -             -
+checks pass                            yes           yes
+  wasted (without memory): bash: ImportError: these checks only run with CALC_CHECKS=1 set

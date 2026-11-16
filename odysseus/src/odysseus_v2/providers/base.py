@@ -86,12 +86,21 @@ class Usage(TypedDict):
     output: int
 
 
-class Completion(TypedDict):
-    """What every provider returns, whatever its wire format."""
-
+class _CompletionRequired(TypedDict):
     text: str
     tool_calls: list[ToolCall]
     usage: Usage
+
+
+class Completion(_CompletionRequired, total=False):
+    """What every provider returns, whatever its wire format.
+
+    ``truncated`` is True when the reply stopped because it hit the
+    output-token limit: its text, or a tool call's arguments, may be
+    cut off mid-way. Every vendor reports this; every provider sets it.
+    """
+
+    truncated: bool
 
 
 # A tool schema is a JSON Schema function declaration:

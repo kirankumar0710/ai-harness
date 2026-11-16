@@ -24,10 +24,10 @@ place, so the same list can be passed to the next ``run_task`` call.
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping, MutableSequence
+from collections.abc import Iterable, Mapping, MutableSequence
 from typing import Any
 
-from .context import DEFAULT_BUDGET_TOKENS, Compactor
+from .context import DEFAULT_BUDGET_TOKENS, Compactor, estimate_overhead
 from .loop import EventHandler, run_loop
 from .memory import build_system_prompt, memory_tools
 from .providers import Message, Provider
@@ -58,12 +58,15 @@ def run_task(
     on_event: EventHandler = _ignore_event,
     messages: MutableSequence[Message] | None = None,
     extra_prompt: str = "",
+    tools: Iterable[Tool] | None = None,
 ) -> str:
     """Run one task in ``workdir`` and return the model's final answer.
 
     The system prompt is rebuilt on every call, so notes saved with
     ``remember`` and skills added to ``skills/`` take effect on the next
     task. ``on_event`` receives the loop's events plus ``"compact"``.
+    ``tools`` replaces the default set (``harness_tools``), for a task
+    that should only have some of them.
     """
     if not os.path.isdir(workdir):
         raise NotADirectoryError(f"working directory not found: {workdir}")
@@ -73,8 +76,18 @@ def run_task(
 
     system = build_system_prompt(workdir, catalog_prompt(workdir),
                                  extra_prompt)
-    compactor = Compactor(provider, budget_tokens, on_event=on_event)
-    policy = Policy(mode, approver)
-    return run_loop(provider, system, messages, harness_tools(workdir),
-                    on_event=on_event, before_tool=policy.check,
+    tool_set = (tool_map(tools) if tools is not None
+                else harness_tools(workdir))
+    overhead = estimate_overhead(
+        system, [t.spec["schema"] for t in tool_set.values()])
+    compactor = Compactor(provider, budget_tokens, on_event=on_event,
+                          overhead_tokens=overhead)
+    policy = Policy(mode, approver, available=tool_set)
+
+    def events(kind: str, payload: Mapping[str, Any]) -> None:
+        compactor.observe(kind, payload)     # real request sizes
+        on_event(kind, payload)
+
+    return run_loop(provider, system, messages, tool_set,
+                    on_event=events, before_tool=policy.check,
                     max_turns=max_turns, before_turn=compactor.compact)

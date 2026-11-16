@@ -31,6 +31,9 @@ EventHandler = Callable[[str, Mapping[str, Any]], None]
 ToolGate = Callable[[ToolCall], "str | None"]   # block reason, or None
 TurnHook = Callable[[list[Message]], list[Message]]
 
+TRUNCATED_NOTE = ("\n\n[Warning: this reply was cut off at the model's "
+                  "output-token limit; it may be incomplete.]")
+
 WRAP_UP_PROMPT = (
     "Turn limit reached. Do not call any more tools. Summarise what was "
     "done, what remains, and what someone resuming this work needs to know."
@@ -69,7 +72,9 @@ def run_loop(
     ``messages`` is updated in place: it is the agent's entire memory.
 
     Events: ``"assistant"`` after each model reply (payload: the
-    ``Completion``), ``"tool_start"`` and ``"tool_end"`` around each tool.
+    ``Completion``), ``"tool_start"`` and ``"tool_end"`` around each tool,
+    and ``"truncated"`` when a reply hit the output-token limit (the
+    returned answer then ends with ``TRUNCATED_NOTE``).
     ``before_tool`` is the permission gate; ``before_turn`` may
     rewrite the history before each call.
     """
@@ -82,9 +87,10 @@ def run_loop(
         reply = provider.complete(system, messages, schemas)
         _append_reply(messages, reply)
         on_event("assistant", reply)
+        _report_truncation(reply, on_event)
 
         if not reply["tool_calls"]:
-            return reply["text"]            # no request: the model is done
+            return _answer(reply)           # no request: the model is done
 
         for call in reply["tool_calls"]:    # answer every call, in order
             on_event("tool_start", call)
@@ -104,6 +110,25 @@ def run_loop(
     _append_reply(messages, Completion(text=reply["text"], tool_calls=[],
                                        usage=reply["usage"]))
     on_event("assistant", reply)
+    _report_truncation(reply, on_event)
+    return _answer(reply)
+
+
+def _report_truncation(reply: Completion, on_event: EventHandler) -> None:
+    """Emit ``"truncated"`` when a reply hit the output-token limit."""
+    if reply.get("truncated"):
+        on_event("truncated", {"output": reply["usage"]["output"],
+                               "tool_calls": len(reply["tool_calls"])})
+
+
+def _answer(reply: Completion) -> str:
+    """The final answer, marked if it was cut off.
+
+    The history keeps exactly what the model wrote; only the returned
+    answer carries the warning, so a caller cannot mistake it for whole.
+    """
+    if reply.get("truncated"):
+        return reply["text"] + TRUNCATED_NOTE
     return reply["text"]
 
 

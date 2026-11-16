@@ -142,6 +142,7 @@ class OpenAICompatibleProvider(Provider):
             tool_calls=tool_calls,
             usage={"input": usage.get("prompt_tokens", 0),
                    "output": usage.get("completion_tokens", 0)},
+            truncated=choices[0].get("finish_reason") == "length",
         )
 
 

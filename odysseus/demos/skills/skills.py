@@ -232,7 +232,7 @@ def _short(args: Mapping[str, Any]) -> str:
     parts = []
     for key, value in args.items():
         text = repr(value)
-        if len(text) > 60:
+        if key != "command" and len(text) > 60:   # commands in full
             text = text[:57].replace("\\n", " ") + "...'"
         parts.append(f"{key}={text}")
     return ", ".join(parts)

@@ -174,21 +174,28 @@ odysseus
 │           └── openai_compatible.py   OpenAI, OpenRouter and other compatible servers
 ├── demos
 │   ├── index.html                     list of demos
+│   ├── record.py                      run a demo and save its full output to <demo>/output/
+│   ├── run.sh                         run every demo, every mode; output to runs/ (git-ignored)
 │   ├── dice                           one tool, two tasks: the loop end to end
-│   │   ├── dice.py                    the demo script
+│   │   ├── dice.py                    the demo script (--offline needs no API key)
+│   │   ├── output/                    complete output of every recorded run
 │   │   └── dice_walkthrough.html      goal, how to run, sample output, analysis
 │   ├── gate                           six core tools through every permission mode
 │   │   ├── gate.py                    the demo script (--offline needs no API key)
+│   │   ├── output/                    complete output of every recorded run
 │   │   └── gate_walkthrough.html      goal, how to run, sample output, analysis
 │   ├── skills                         two skills, three tasks: loaded only when relevant
 │   │   ├── skills.py                  the demo script (--offline needs no API key)
+│   │   ├── output/                    complete output of every recorded run
 │   │   ├── skills_walkthrough.html    goal, how to run, sample output, analysis
 │   │   └── example_skills/            release-note and review-migration SKILL.md files
 │   ├── memory                         one task twice: without and with AGENT_MEMORY.md
 │   │   ├── memory.py                  the demo script (--offline needs no API key)
+│   │   ├── output/                    complete output of every recorded run
 │   │   └── memory_walkthrough.html    goal, how to run, sample output, analysis
 │   └── context                        one long task twice: without and with compaction
 │       ├── context.py                 the demo script (--offline needs no API key)
+│       ├── output/                    complete output of every recorded run
 │       └── context_walkthrough.html   goal, how to run, sample output, analysis
 └── tests
     ├── test_harness.py                offline tests (fake transport, no network)
@@ -198,16 +205,23 @@ odysseus
 
 ## Architecture
 
-Odysseus has four parts. Applications use the first two; the provider hides
-everything vendor-specific behind one method, `complete()`, so the loop and
-any application built on it work unchanged with every vendor.
+Odysseus is a small set of parts around one loop. The provider hides
+everything vendor-specific behind one method, `complete()`; everything else
+(tools, the gate, context, memory, skills) works the same with every vendor.
+Applications usually call `run_task()`, which connects them all.
 
 | Part | Where | Job |
 |---|---|---|
+| **Harness** | `run_task()` in `harness.py` | connects every part below for one task: tools, system prompt, gate, compactor, loop |
 | **Factory** | `create_provider()` in `providers/__init__.py` | picks the vendor and builds its provider with a resolved config |
-| **Agent loop** | `run_loop()` in `loop.py` | calls the model, runs the tools it asks for, repeats until it is done |
+| **Agent loop** | `run_loop()` in `loop.py` | calls the model, runs the tools it asks for, repeats until it is done; reports a reply cut off at the output limit |
 | **Provider** | one subclass of `Provider` per vendor | converts the neutral conversation to the vendor's format and back |
 | **Transport** | `post_json()` in `providers/base.py` | sends the HTTPS request; retries rate limits, server and network errors |
+| **Tools** | `core_tools()`, `@tool` in `tools.py` | read, write, edit, list, grep, bash; file paths jailed to the working directory; bash gets no secrets from the environment |
+| **Gate** | `Policy.check` in `security.py` | before every tool call: deny rules, then the mode (read-only / safe / yolo), then the approver |
+| **Compactor** | `Compactor` in `context.py` | before every model call: if the request would pass the budget (measured from the vendor's reported size), folds old turns into a summary; warns if the budget is too small to fold into |
+| **Memory** | `memory.py` | builds the system prompt, including `AGENT_MEMORY.md`; the `remember` tool adds to it |
+| **Skills** | `skills.py` | lists `skills/*/SKILL.md` in the prompt; the `use_skill` tool loads one when relevant |
 
 ```mermaid
 flowchart TB
@@ -216,25 +230,43 @@ flowchart TB
         ini["providers.ini<br/>+ optional ODYSSEUS_CONFIG file"]
     end
 
+    subgraph project["Working directory"]
+        files["project files"]
+        mem["AGENT_MEMORY.md"]
+        skills["skills/*/SKILL.md"]
+    end
+
     subgraph odysseus["odysseus_v2"]
-        factory["create_provider()"]
-        fromenv["e.g. GeminiConfig.from_env()"]
+        task["run_task()"]
+        prompt["build_system_prompt()<br/>rules + memory + skills catalog"]
         loop["run_loop()"]
+        compactor["Compactor<br/>before_turn"]
+        gate["Policy.check<br/>before_tool"]
+        tools["Tools<br/>core_tools + remember + use_skill"]
+        factory["create_provider()"]
         provider["Provider<br/>Gemini / OpenAI / OpenRouter / Anthropic"]
         transport["post_json()<br/>retries + backoff"]
     end
 
-    tools["Tools<br/>objects with name, spec, run()"]
     api[("Vendor API")]
 
-    factory -- "builds config" --> fromenv
-    fromenv -- "reads" --> env
-    fromenv -- "reads defaults" --> ini
+    factory -- "reads" --> env
+    factory -- "reads defaults" --> ini
     factory -- "creates" --> provider
+    task -- "builds" --> prompt
+    prompt -- "reads" --> mem
+    prompt -- "reads catalog" --> skills
+    task -- "starts" --> loop
+    loop -- "each turn" --> compactor
     loop -- "complete()" --> provider
+    compactor -- "summary call" --> provider
     provider -- "url, headers, body" --> transport
     transport -- "HTTPS POST" --> api
-    loop -- "run(args)" --> tools
+    loop -- "each tool call" --> gate
+    gate -- "allowed" --> tools
+    tools -- "jailed" --> files
+    tools -- "remember" --> mem
+    tools -- "use_skill" --> skills
 ```
 
 **How the loop works.** Each turn, `run_loop()` sends the conversation to the
@@ -250,6 +282,9 @@ next turn. The rules it keeps:
 - `max_turns` is a hard stop. When it is reached, one last call is made with
   tools disabled, so the model reports what was done instead of stopping
   silently.
+- A reply cut off at the model's output-token limit is never passed off as
+  complete: the loop emits a `truncated` event and the returned answer ends
+  with a warning.
 
 Each demo's page in [`demos/`](demos/index.html) traces a concrete run
 through these parts.

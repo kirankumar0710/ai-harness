@@ -8,3 +8,6 @@ __pycache__/
 build/
 dist/
 .venv/
+
+# demo runs from demos/run.sh: upload, never commit
+odysseus/demos/runs/

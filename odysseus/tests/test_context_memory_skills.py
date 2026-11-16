@@ -11,7 +11,8 @@ import unittest
 
 from odysseus_v2 import Compactor, build_system_prompt, run_loop, run_task
 from odysseus_v2.context import (MAX_CHARS_PER_MESSAGE, SUMMARY_HEADER,
-                                 estimate_tokens, transcript)
+                                 estimate_overhead, estimate_tokens,
+                                 transcript)
 from odysseus_v2.memory import MAX_MEMORY_CHARS, MEMORY_FILE, memory_tools
 from odysseus_v2.providers import Completion, Provider
 from odysseus_v2.security import Policy
@@ -91,8 +92,9 @@ class CompactorTests(unittest.TestCase):
     def test_over_budget_folds_old_turns_into_a_summary(self):
         provider = ScriptedProvider([reply("Task: build. Done: steps 0-1.")])
         events = []
-        compactor = Compactor(provider, budget_tokens=100, keep_recent=6,
-                              on_event=lambda k, p: events.append((k, p)))
+        compactor = Compactor(provider, budget_tokens=700, keep_recent=6,
+                              on_event=lambda k, p: events.append((k, p)),
+                              fold_to=0.8)
         history = self.long_history()
         compacted = compactor.compact(history)
 
@@ -111,10 +113,66 @@ class CompactorTests(unittest.TestCase):
         provider = ScriptedProvider([reply("summary")])
         history = self.long_history()
         # keep_recent=5 would start the recent part on a tool result.
-        compacted = Compactor(provider, 100, keep_recent=5).compact(history)
+        compacted = Compactor(provider, 700, keep_recent=5,
+                              fold_to=0.8).compact(history)
         self.assertEqual(compacted[1]["role"], "assistant")
         self.assertEqual(compacted[2]["role"], "tool")
         self.assertEqual(compacted[1:], history[-6:])
+
+    def test_tight_budget_keeps_fewer_but_never_splits_a_pair(self):
+        provider = ScriptedProvider([reply("summary")])
+        history = self.long_history()
+        compacted = Compactor(provider, budget_tokens=300).compact(history)
+        self.assertEqual([m["role"] for m in compacted],
+                         ["user", "assistant", "tool"])
+        self.assertEqual(compacted[1:], history[-2:])
+
+    def test_folding_to_half_the_budget_leaves_room_to_grow(self):
+        provider = ScriptedProvider([reply("summary")])
+        history = self.long_history()
+        compactor = Compactor(provider, budget_tokens=700)   # fold_to=0.5
+        compacted = compactor.compact(history)
+        self.assertLessEqual(estimate_tokens(compacted[1:]), 350)
+        self.assertEqual(compacted[-1], history[-1])
+        with self.assertRaises(ValueError):
+            Compactor(provider, budget_tokens=700, fold_to=1.0)
+
+    def test_unreachable_target_warns_once(self):
+        provider = ScriptedProvider([reply("summary"), reply("summary")])
+        events = []
+        # Each kept pair alone is ~145 tokens: more than half of 250.
+        compactor = Compactor(provider, budget_tokens=250,
+                              on_event=lambda k, p: events.append((k, p)))
+        history = self.long_history()
+        compactor.compact(history)
+        compactor.compact(history)
+        warnings = [p for k, p in events if k == "budget_warning"]
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("cannot fold down to the target",
+                      warnings[0]["reason"])
+        self.assertEqual(warnings[0]["target"], 125)
+
+    def test_reachable_target_does_not_warn(self):
+        events = []
+        compactor = Compactor(ScriptedProvider([reply("summary")]),
+                              budget_tokens=700,
+                              on_event=lambda k, p: events.append(k))
+        compactor.compact(self.long_history())
+        self.assertIn("compact", events)
+        self.assertNotIn("budget_warning", events)
+
+    def test_reported_sizes_drive_the_budget(self):
+        history = self.long_history()
+        compactor = Compactor(ScriptedProvider([reply("summary")]),
+                              budget_tokens=2000)
+        earlier = history[:-2]
+        self.assertIs(compactor.compact(earlier), earlier)
+        # The vendor reports the request was 3x the estimate.
+        estimate = estimate_tokens(earlier)
+        compactor.observe("assistant", {"usage": {"input": 3 * estimate}})
+        self.assertGreater(compactor.measure(history), 2000)
+        self.assertAlmostEqual(compactor.scale, 3.0, places=1)
+        self.assertIsNot(compactor.compact(history), history)
 
     def test_summary_merges_into_a_leading_user_message(self):
         provider = ScriptedProvider([reply("summary")])
@@ -140,16 +198,34 @@ class CompactorTests(unittest.TestCase):
 
     def test_loop_sends_the_compacted_history(self):
         provider = ScriptedProvider([reply("summary"), reply("done")])
-        compactor = Compactor(provider, budget_tokens=100, keep_recent=6)
+        compactor = Compactor(provider, budget_tokens=700, keep_recent=6,
+                              fold_to=0.8)
         messages = self.long_history()
         run_loop(provider, "", messages, {}, before_turn=compactor.compact)
         sent = provider.calls[1]["messages"]
         self.assertTrue(sent[0]["text"].startswith(SUMMARY_HEADER))
         self.assertEqual(len(messages), 8)    # summary + 6 kept + answer
 
+    def test_overhead_counts_against_the_budget(self):
+        history = self.long_history()
+        size = estimate_tokens(history)
+        under = Compactor(ScriptedProvider([]), budget_tokens=size + 10)
+        self.assertIs(under.compact(history), history)
+        provider = ScriptedProvider([reply("summary")])
+        with_overhead = Compactor(provider, budget_tokens=size + 10,
+                                  overhead_tokens=500)
+        self.assertIsNot(with_overhead.compact(history), history)
+
+    def test_overhead_estimate_covers_system_and_schemas(self):
+        schema = {"name": "x", "description": "d" * 400, "parameters": {}}
+        self.assertGreater(estimate_overhead("s" * 400, [schema]), 200)
+
     def test_bad_settings_are_rejected(self):
         with self.assertRaises(ValueError):
             Compactor(ScriptedProvider([]), budget_tokens=0)
+        with self.assertRaises(ValueError):
+            Compactor(ScriptedProvider([]), budget_tokens=100,
+                      overhead_tokens=100)
 
 
 # --------------------------------------------------------------------------
@@ -174,8 +250,9 @@ class MemoryTests(unittest.TestCase):
                       prompt)
         self.assertTrue(prompt.endswith("EXTRA SECTION"))
 
-    def test_no_memory_file_means_no_memory_section(self):
-        self.assertNotIn("Project memory", build_system_prompt(self.workdir))
+    def test_no_memory_file_says_none_yet(self):
+        prompt = build_system_prompt(self.workdir)
+        self.assertIn("Project memory (AGENT_MEMORY.md): none yet", prompt)
 
     def test_remember_appends_one_tidy_line(self):
         answer = self.remember.run(note="  run tests\n with  unittest ")
@@ -295,6 +372,15 @@ class HarnessTests(unittest.TestCase):
         run_task(provider, self.workdir, "second", messages=messages)
         self.assertEqual([m["text"] for m in messages],
                          ["first", "one", "second", "two"])
+
+    def test_tools_option_limits_the_tool_set(self):
+        from odysseus_v2 import core_tools
+        provider = ScriptedProvider([reply("done")])
+        only = [t for t in core_tools(self.workdir)
+                if t.name in {"read_file", "write_file"}]
+        run_task(provider, self.workdir, "task", tools=only)
+        self.assertEqual(sorted(provider.calls[0]["tools"]),
+                         ["read_file", "write_file"])
 
     def test_missing_workdir_is_a_clear_error(self):
         with self.assertRaises(NotADirectoryError):

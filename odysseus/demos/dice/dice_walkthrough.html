@@ -144,13 +144,13 @@ sequenceDiagram
     P-->>RL: Completion with 1 tool call
     RL->>RL: append assistant message  [2]
     RL->>T: run(count=3)
-    T-->>RL: [6, 5, 5]
+    T-->>RL: [4, 3, 1]
     RL->>RL: append tool result, quoting the call id  [3]
 
     Note over RL,T: Turn 2: the model answers
     RL->>P: complete(system, messages, roll_dice schema)
     P->>API: POST /v1/messages, history includes tool_use and tool_result
-    API-->>P: text: the total is 16, which beats 10
+    API-->>P: text: the total is 8, which does not beat 10
     P-->>RL: Completion with no tool calls
     RL->>RL: append assistant message  [4]
     RL-->>D: final answer text
@@ -189,7 +189,11 @@ sequenceDiagram
 <pre><code>export ANTHROPIC_API_KEY=...</code></pre>
 
   <h3>3. Run, from the <code>odysseus</code> folder</h3>
-<pre><code>python3 demos/dice/dice.py</code></pre>
+<pre><code>python3 demos/dice/dice.py             # a real model
+python3 demos/dice/dice.py --offline   # no provider or key needed</code></pre>
+  <p>With <code>--offline</code>, a scripted model stands in: it calls the real
+     <code>roll_dice</code> tool and answers from the values that come back, and replies to
+     the landing-page task in text with no tool call. Steps 1 and 2 are not needed.</p>
   <p>The base URL and model come from <code>providers.ini</code>. To use different ones,
      point <code>ODYSSEUS_CONFIG</code> at your own <code>.ini</code> file, or set
      <code>ODYSSEUS_MODEL</code>. <code>openai</code> has no default model, so you must set
@@ -198,52 +202,72 @@ sequenceDiagram
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="output">Sample output</h2>
-  <p>Runs with <code>anthropic</code> / <code>claude-sonnet-5-5</code>. The landing-page
-     reply shown is from a later run than the dice task; the model writes a different page
-     each time. Its HTML (about 5,400 tokens with the notes) is shortened here; the summary
-     the model wrote after it is shown in full.</p>
+  <h3>Offline run (scripted model)</h3>
+  <p>The model's lines are scripted; the dice rolls, tool results and message counts are
+     real.</p>
+<pre><code>$ python3 demos/dice/dice.py --offline
+provider: offline - scripted replies
+
+user: Roll 3 dice and tell me whether the total beats 10.
+  -&gt; roll_dice({'count': 3})
+  &lt;- [1, 5, 6]
+assistant: I rolled 1, 5, 6: the total is 12, which beats 10.
+(4 messages in the array)
+
+user: Build a landing page for a coffee shop.
+assistant: I can only roll dice here, so I can't build a page. I can describe one: a hero with the shop's name, a menu, opening hours and a map.
+(2 messages in the array)
+</code></pre>
+  <p class="dim">Full output: <a href="output/offline.txt"><code>output/offline.txt</code></a>.</p>
+
+  <h3>Live run</h3>
+  <p>One run with <code>anthropic</code> / <code>claude-sonnet-5-5</code>, recorded with
+     <code>python3 demos/record.py dice</code>. Only the page's HTML (279 lines) is cut here;
+     everything the model wrote around it is shown in full.</p>
 <pre><code>$ python3 demos/dice/dice.py
 provider: anthropic - claude-sonnet-5-5
 
 user: Roll 3 dice and tell me whether the total beats 10.
   [tokens in 421, out 49]
   -&gt; roll_dice({'count': 3})
-  &lt;- [6, 5, 5]
-assistant: The dice came up 6, 5 and 5, so the total is 16. That beats 10 by 6.
-  [tokens in 484, out 34]
+  &lt;- [4, 3, 1]
+assistant: The dice came up 4, 3 and 1, so the total is 8. That doesn't beat 10. It's 2 short.
+  [tokens in 484, out 41]
 (4 messages in the array)
 
 user: Build a landing page for a coffee shop.
-assistant: <span class="dim">... a short introduction, then the page as one HTML file ...</span>
+assistant: # Coffee Shop Landing Page
+
+Here's a complete, single-file landing page. Save it as `index.html` and open it in a browser. It has no dependencies.
 
 ```html
 &lt;!DOCTYPE html&gt;
 &lt;html lang="en"&gt;
-<span class="dim">  ... HTML, CSS and a little JavaScript: nav, hero, "Why Us" cards,
-      menu, story, testimonials, visit and contact form, footer ...</span>
+<span class="dim">  ... 276 more lines of HTML and CSS: nav, hero, our story,
+      menu cards with prices, reviews, hours and contact form, footer ...</span>
 &lt;/html&gt;
 ```
 
 ## What's included
-- **Sticky nav** with smooth-scroll anchors
-- **Hero** with a background photo and two calls to action
-- **"Why Us"** feature cards
-- **Menu** section with prices
-- **Our Story** with an image and text
-- **Testimonials**
-- **Visit section** with hours, address, and a contact form (the form shows a confirmation message but doesn't send anywhere yet)
-- **Responsive layout** that works on mobile
-- **Footer** with an auto-updating year
+- **Sticky navigation** with smooth-scroll anchors
+- **Hero section** with a background image and two calls to action
+- **Our Story** section with an image and text
+- **Menu cards** with hover animations
+- **Testimonials** on a dark background for contrast
+- **Visit section** with hours and a contact form
+- **Responsive layout** that works on mobile and desktop
 
-## Customizing
-- **Name and content:** replace "Ember &amp; Bean", the address, the menu items, and the quotes with your own.
-- **Colors:** edit the CSS variables in `:root` at the top of the stylesheet.
-- **Images:** the photos load from Unsplash. Swap in your own for the best results.
-- **Form:** connect it to a service like Formspree or Netlify Forms, or to your own backend.
+## Easy customizations
+- **Name, address, and hours:** replace the placeholder text.
+- **Colors:** edit the CSS variables at the top of `&lt;style&gt;`.
+- **Images:** swap the Unsplash URLs for your own photos.
+- **Contact form:** it currently shows an alert. Connect it to a service like Formspree or Netlify Forms to receive real messages.
 
-I can add an online ordering section, a Google Maps embed, a gallery, or a dark mode if you'd like. I can also adapt it to React or Tailwind.
-  [tokens in 414, out 5454]
-(2 messages in the array)</code></pre>
+I can also adapt this to React or Tailwind, add an online ordering section, or change the style (modern, minimalist, rustic) if you'd like.
+  [tokens in 414, out 4554]
+(2 messages in the array)
+</code></pre>
+  <p class="dim">Full output: <a href="output/live.txt"><code>output/live.txt</code></a>, including the whole page.</p>
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="analysis">Analysis</h2>
@@ -255,10 +279,12 @@ I can add an online ordering section, a Google Maps embed, a gallery, or a dark 
     <li><strong>4 messages, as expected:</strong> user → tool call → tool result → answer.</li>
     <li>The model chose the tool on its own and passed the correct argument
         (<code>count: 3</code>).</li>
-    <li>The result <code>[6, 5, 5]</code> was sent back with the call's id and the API
+    <li>The result <code>[4, 3, 1]</code> was sent back with the call's id and the API
         accepted it, so the conversion of tool calls and results to Anthropic's format is
         correct.</li>
-    <li>The answer is correct: 6 + 5 + 5 = 16, which beats 10.</li>
+    <li>The answer is correct: 4 + 3 + 1 = 8, which does not beat 10. The model even said
+        by how much: “It's 2 short”. (Earlier runs rolled 6, 5, 5 = 16, which does, and
+        1, 2, 4 = 7, which does not.)</li>
     <li>Token usage was parsed for both calls. The second call's input grew from 421 to 484
         tokens because it carries the tool call and result.</li>
   </ul>
@@ -270,11 +296,13 @@ I can add an online ordering section, a Google Maps embed, a gallery, or a dark 
     <li>The model has no tool to write files, so it put the whole page in its text reply.
         That is the intended <em>judgment without hands</em>: it knows what to build but
         cannot act on it.</li>
-    <li>It also knew what it could not do: it says the contact form "doesn't send anywhere
-        yet" and suggests services to connect it to, instead of claiming a working form.</li>
-    <li>The reply is not deterministic. Two runs produced different pages (one with a
-        newsletter form, one with "Why Us" cards and a contact form) and different lengths:
-        4,533 and 5,454 output tokens.</li>
+    <li>It also knew what it could not do: it says the contact form “currently shows an
+        alert” and suggests services to connect it to, instead of claiming a working
+        form.</li>
+    <li>The reply is not deterministic. Four runs produced four different pages and four
+        lengths: 4,533, 5,454, 5,181 and, this run, 4,554 output tokens. The last three all
+        named the shop “Ember &amp; Bean”, so the variety is in the layout and wording more
+        than the idea.</li>
     <li>The closing offer ("I can also adapt it to React or Tailwind") cannot be taken up
         here. The demo ends the conversation after each task, so there is no turn in which a
         user could reply. The model offers because that is what it does in a chat; a
@@ -285,20 +313,23 @@ I can add an online ordering section, a Google Maps embed, a gallery, or a dark 
   <h3>Something to watch</h3>
   <div class="callout">
     <p style="margin-top:0"><strong>Silent truncation risk.</strong> The landing-page reply
-      used 5,454 output tokens, two-thirds of the default limit
-      (<code>max_output_tokens = 8192</code> for Anthropic), up from 4,533 in an earlier run.
+      used 4,554 output tokens, more than half the default limit
+      (<code>max_output_tokens = 8192</code> for Anthropic); earlier runs used up to 5,454,
+      two-thirds of it.
       Length varies from run to run, so a longer reply would eventually be cut off
       at the limit, and the harness would not notice: the providers ignore the vendor's stop
       reason (<code>stop_reason: "max_tokens"</code> for Anthropic, <code>finishReason</code>
       for Gemini, <code>finish_reason: "length"</code> for OpenAI).</p>
-    <p>The 5,454 tokens are the size of the <em>whole</em> model reply: the introduction,
+    <p>The 4,554 tokens are the size of the <em>whole</em> model reply: the introduction,
       the HTML, and the "What's included" and "Customizing" notes after it. All of it counts
       towards the limit. A reply that hits the limit loses its <em>end</em>, which here means
       these notes or even the closing <code>&lt;/html&gt;</code> tag, leaving a page that
       looks complete in the transcript but is broken.</p>
-    <p style="margin-bottom:0">The loop would then treat the cut-off text as a finished
-      answer. Fix: check the stop reason in each provider and raise an error or emit a
-      warning event when output was truncated.</p>
+    <p style="margin-bottom:0">The loop used to treat the cut-off text as a finished answer.
+      <strong>Fixed since:</strong> every provider now reads its vendor's stop reason
+      (<code>max_tokens</code>, <code>MAX_TOKENS</code>, <code>length</code>), the loop emits a
+      <code>truncated</code> event (this demo prints it), and the returned answer ends with a
+      warning that it is incomplete.</p>
   </div>
 
   <!-- ------------------------------------------------------------------ -->
@@ -309,8 +340,9 @@ I can add an online ordering section, a Google Maps embed, a gallery, or a dark 
         back, locally generated call ids, empty message parts), so it is the most worth
         checking.</li>
     <li><strong>Run with OpenAI or OpenRouter</strong> to cover the third request format.</li>
-    <li><strong>Handle the stop reason</strong> so truncated replies are reported instead of
-        passed off as complete.</li>
+    <li><strong>Lower the output limit on purpose</strong> (for example
+        <code>max_output_tokens = 1000</code> in your own <code>.ini</code>) to see the
+        truncation warning fire on the landing page.</li>
   </ul>
 </main>
 <!-- Draws the sequence diagram. Pinned version; if offline, the source text stays visible. -->

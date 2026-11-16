@@ -1,0 +1,319 @@
+# dice demo, recorded 2026-11-16, provider: anthropic - claude-sonnet-5-5, exit code 0
+
+$ python3 demos/dice/dice.py
+provider: anthropic - claude-sonnet-5-5
+
+user: Roll 3 dice and tell me whether the total beats 10.
+  [tokens in 421, out 49]
+  -> roll_dice({'count': 3})
+  <- [4, 3, 1]
+assistant: The dice came up 4, 3 and 1, so the total is 8. That doesn't beat 10. It's 2 short.
+  [tokens in 484, out 41]
+(4 messages in the array)
+
+user: Build a landing page for a coffee shop.
+assistant: # Coffee Shop Landing Page
+
+Here's a complete, single-file landing page. Save it as `index.html` and open it in a browser. It has no dependencies.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ember & Bean | Small-Batch Coffee</title>
+  <meta name="description" content="Ember & Bean is a neighborhood coffee shop serving small-batch roasted coffee, fresh pastries, and good company." />
+  <style>
+    :root {
+      --espresso: #2b1d16;
+      --roast: #4a3228;
+      --caramel: #c98b4f;
+      --cream: #f8f1e7;
+      --foam: #fffaf3;
+      --text: #3a2b24;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: "Georgia", "Times New Roman", serif;
+      color: var(--text);
+      background: var(--foam);
+      line-height: 1.6;
+    }
+
+    h1, h2, h3 { line-height: 1.2; }
+    a { color: inherit; text-decoration: none; }
+
+    .container { width: min(1100px, 92%); margin: 0 auto; }
+
+    .btn {
+      display: inline-block;
+      padding: 14px 28px;
+      border-radius: 999px;
+      background: var(--caramel);
+      color: var(--espresso);
+      font-family: system-ui, sans-serif;
+      font-weight: 600;
+      letter-spacing: .3px;
+      transition: transform .2s, background .2s;
+    }
+    .btn:hover { transform: translateY(-2px); background: #dba064; }
+    .btn.outline {
+      background: transparent;
+      border: 2px solid var(--cream);
+      color: var(--cream);
+    }
+    .btn.outline:hover { background: rgba(255,255,255,.1); }
+
+    /* Header */
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(43, 29, 22, .95);
+      backdrop-filter: blur(6px);
+    }
+    nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 0;
+      color: var(--cream);
+    }
+    .logo { font-size: 1.5rem; font-weight: bold; }
+    .logo span { color: var(--caramel); }
+    nav ul { display: flex; gap: 28px; list-style: none; font-family: system-ui, sans-serif; font-size: .95rem; }
+    nav ul a:hover { color: var(--caramel); }
+
+    /* Hero */
+    .hero {
+      min-height: 85vh;
+      display: flex; align-items: center;
+      color: var(--cream);
+      background:
+        linear-gradient(rgba(43,29,22,.75), rgba(43,29,22,.85)),
+        url("https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1600&q=80") center/cover;
+    }
+    .hero h1 { font-size: clamp(2.4rem, 6vw, 4.2rem); max-width: 700px; margin-bottom: 20px; }
+    .hero p { font-size: 1.2rem; max-width: 540px; margin-bottom: 32px; opacity: .9; }
+    .hero .actions { display: flex; gap: 16px; flex-wrap: wrap; }
+
+    /* Sections */
+    section { padding: 90px 0; }
+    .section-title { text-align: center; margin-bottom: 50px; }
+    .section-title h2 { font-size: 2.3rem; color: var(--espresso); }
+    .section-title p { color: var(--roast); opacity: .8; margin-top: 8px; }
+
+    /* About */
+    .about { background: var(--cream); }
+    .about-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 50px; align-items: center;
+    }
+    .about img { width: 100%; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,.15); }
+    .about h2 { font-size: 2.2rem; margin-bottom: 16px; color: var(--espresso); }
+    .about p { margin-bottom: 14px; }
+
+    /* Menu */
+    .menu-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px;
+    }
+    .card {
+      background: white; padding: 28px; border-radius: 16px;
+      box-shadow: 0 6px 20px rgba(74,50,40,.08);
+      transition: transform .25s;
+    }
+    .card:hover { transform: translateY(-6px); }
+    .card .emoji { font-size: 2.2rem; }
+    .card h3 { margin: 10px 0 6px; color: var(--espresso); }
+    .card .price { color: var(--caramel); font-weight: bold; font-family: system-ui, sans-serif; margin-top: 10px; }
+
+    /* Testimonials */
+    .testimonials { background: var(--espresso); color: var(--cream); }
+    .testimonials .section-title h2 { color: var(--cream); }
+    .quotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+    blockquote {
+      background: var(--roast); padding: 28px; border-radius: 16px; font-style: italic;
+    }
+    blockquote footer { margin-top: 14px; font-style: normal; font-family: system-ui, sans-serif; color: var(--caramel); font-size: .9rem; }
+
+    /* Visit */
+    .visit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+    .visit-grid h3 { margin-bottom: 12px; color: var(--espresso); }
+    .hours { list-style: none; font-family: system-ui, sans-serif; }
+    .hours li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #d8c9b8; }
+
+    form { display: grid; gap: 14px; }
+    input, textarea {
+      padding: 14px; border-radius: 10px; border: 1px solid #d8c9b8;
+      font: inherit; background: white;
+    }
+    input:focus, textarea:focus { outline: 2px solid var(--caramel); }
+    form button { border: none; cursor: pointer; font-size: 1rem; }
+
+    /* Footer */
+    footer.site {
+      background: var(--espresso); color: var(--cream);
+      text-align: center; padding: 30px 0; font-family: system-ui, sans-serif; font-size: .9rem;
+    }
+
+    @media (max-width: 760px) {
+      nav ul { display: none; }
+      .about-grid, .visit-grid { grid-template-columns: 1fr; }
+      section { padding: 60px 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="container">
+      <nav>
+        <a href="#" class="logo">Ember<span>&</span>Bean</a>
+        <ul>
+          <li><a href="#about">Our Story</a></li>
+          <li><a href="#menu">Menu</a></li>
+          <li><a href="#reviews">Reviews</a></li>
+          <li><a href="#visit">Visit</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <h1>Coffee roasted slow. Moments savored longer.</h1>
+        <p>Small-batch beans, fresh-baked pastries, and a warm seat waiting for you in the heart of the neighborhood.</p>
+        <div class="actions">
+          <a href="#menu" class="btn">See the Menu</a>
+          <a href="#visit" class="btn outline">Find Us</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="about" class="about">
+      <div class="container about-grid">
+        <img src="https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=900&q=80" alt="Barista pouring latte art" />
+        <div>
+          <h2>From bean to cup, with care</h2>
+          <p>We started Ember & Bean in 2016 with one small roaster and a big belief: great coffee should feel personal.</p>
+          <p>We work directly with farmers in Colombia, Ethiopia, and Guatemala, and we roast every batch in-house each morning.</p>
+          <a href="#visit" class="btn">Come Say Hi</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="menu">
+      <div class="container">
+        <div class="section-title">
+          <h2>Our Favorites</h2>
+          <p>Crafted fresh, every single time.</p>
+        </div>
+        <div class="menu-grid">
+          <div class="card">
+            <div class="emoji">☕</div>
+            <h3>Ember Espresso</h3>
+            <p>Rich, bold, with notes of dark chocolate and toasted caramel.</p>
+            <div class="price">$3.50</div>
+          </div>
+          <div class="card">
+            <div class="emoji">🥛</div>
+            <h3>Honey Oat Latte</h3>
+            <p>Velvety oat milk, local honey, and a double shot of espresso.</p>
+            <div class="price">$5.25</div>
+          </div>
+          <div class="card">
+            <div class="emoji">🧊</div>
+            <h3>Cold Brew</h3>
+            <p>Steeped for 18 hours. Smooth, sweet, and never bitter.</p>
+            <div class="price">$4.75</div>
+          </div>
+          <div class="card">
+            <div class="emoji">🥐</div>
+            <h3>Butter Croissant</h3>
+            <p>Flaky, golden, and baked fresh every morning.</p>
+            <div class="price">$3.75</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="reviews" class="testimonials">
+      <div class="container">
+        <div class="section-title">
+          <h2>What Our Regulars Say</h2>
+        </div>
+        <div class="quotes">
+          <blockquote>
+            “The best latte in town, hands down. I've stopped making coffee at home.”
+            <footer>— Maya R.</footer>
+          </blockquote>
+          <blockquote>
+            “Cozy, friendly, and the croissants are unreal. My Saturday ritual.”
+            <footer>— Daniel K.</footer>
+          </blockquote>
+          <blockquote>
+            “You can taste the care in every cup. Worth the trip every time.”
+            <footer>— Priya S.</footer>
+          </blockquote>
+        </div>
+      </div>
+    </section>
+
+    <section id="visit">
+      <div class="container">
+        <div class="section-title">
+          <h2>Visit Us</h2>
+          <p>123 Maple Street, Your City · (555) 123-4567</p>
+        </div>
+        <div class="visit-grid">
+          <div>
+            <h3>Opening Hours</h3>
+            <ul class="hours">
+              <li><span>Mon – Fri</span><span>6:30 am – 7:00 pm</span></li>
+              <li><span>Saturday</span><span>7:00 am – 8:00 pm</span></li>
+              <li><span>Sunday</span><span>8:00 am – 5:00 pm</span></li>
+            </ul>
+          </div>
+          <div>
+            <h3>Send Us a Message</h3>
+            <form onsubmit="event.preventDefault(); alert('Thanks! We\'ll be in touch soon.'); this.reset();">
+              <input type="text" placeholder="Your name" required />
+              <input type="email" placeholder="Your email" required />
+              <textarea rows="4" placeholder="Your message" required></textarea>
+              <button type="submit" class="btn">Send Message</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site">
+    <div class="container">
+      © 2025 Ember & Bean Coffee Co. · Made with ☕ and love
+    </div>
+  </footer>
+
+</body>
+</html>
+```
+
+## What's included
+- **Sticky navigation** with smooth-scroll anchors
+- **Hero section** with a background image and two calls to action
+- **Our Story** section with an image and text
+- **Menu cards** with hover animations
+- **Testimonials** on a dark background for contrast
+- **Visit section** with hours and a contact form
+- **Responsive layout** that works on mobile and desktop
+
+## Easy customizations
+- **Name, address, and hours:** replace the placeholder text.
+- **Colors:** edit the CSS variables at the top of `<style>`.
+- **Images:** swap the Unsplash URLs for your own photos.
+- **Contact form:** it currently shows an alert. Connect it to a service like Formspree or Netlify Forms to receive real messages.
+
+I can also adapt this to React or Tailwind, add an online ordering section, or change the style (modern, minimalist, rustic) if you'd like.
+  [tokens in 414, out 4554]
+(2 messages in the array)
+

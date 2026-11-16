@@ -107,6 +107,15 @@ if __name__ == "__main__":
 # test command cannot carry a second command along with it.
 TEST_COMMAND = re.compile(
     r"\s*python3?\s+-m\s+(unittest|pytest)\b[^;&|`$<>()\n]*")
+# A test command may end with "2>&1" and/or "| tail -N" / "| head -N":
+# they only change how output is shown. The same rule as the memory demo.
+OUTPUT_ONLY = re.compile(
+    r"\s*(2>&1)?\s*(\|\s*(tail|head)((\s+-n)?\s+-?\d+)?)?\s*$")
+
+
+def is_test_command(command: str) -> bool:
+    """A unittest or pytest run, optionally with output trimmed; no more."""
+    return bool(TEST_COMMAND.fullmatch(OUTPUT_ONLY.sub("", command, count=1)))
 
 
 # --------------------------------------------------------------------------
@@ -130,18 +139,30 @@ def make_sandbox() -> tuple[str, str]:
     return base, project
 
 
-def allowlist_approver(call: Mapping[str, Any], reason: str) -> bool:
-    """Approve file edits and test runs; refuse every other side effect."""
+TEST_RULE = ("only a 'python3 -m unittest' or 'python3 -m pytest' command "
+             "is approved; it may end with 2>&1 or | tail -N, but nothing "
+             "else")
+
+
+def allowlist_approver(call: Mapping[str, Any], reason: str) -> bool | str:
+    """Approve file edits and test runs; refuse anything else, saying why.
+
+    A refusal is returned as a string, so the model is told what would
+    be approved instead of only "no".
+    """
     name = call["name"]
     command = str(call["args"].get("command", ""))
     if name in {"write_file", "edit_file"}:
-        approved, why = True, "file change inside the jail"
-    elif name == "bash" and TEST_COMMAND.fullmatch(command):
-        approved, why = True, "test command"
+        answer, why = True, "file change inside the jail"
+    elif name == "bash" and is_test_command(command):
+        answer, why = True, "test command"
+    elif name == "bash":
+        answer = why = TEST_RULE
     else:
-        approved, why = False, "not on the allowlist"
-    print(f"  ? approver: {name} -> {'yes' if approved else 'no'} ({why})")
-    return approved
+        answer = why = f"{name} is not on this approver's allowlist"
+    print(f"  ? approver: {name} -> {'yes' if answer is True else 'no'} "
+          f"({why})")
+    return answer
 
 
 # --------------------------------------------------------------------------
@@ -246,7 +267,7 @@ def run_scenes(make_provider, approver: Approver, project: str) -> None:
         print(f"=== scene {number}: mode={mode} ===")
         print(f"user: {task}")
         messages = [{"role": "user", "text": task}]
-        policy = Policy(mode, approver)
+        policy = Policy(mode, approver, available=tools)
         run_loop(make_provider(mode), SYSTEM, messages, tools,
                  on_event=print_event, before_tool=policy.check,
                  max_turns=12)

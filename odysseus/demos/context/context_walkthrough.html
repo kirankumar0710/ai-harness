@@ -118,8 +118,12 @@ Log line 039: routine entry, nothing to act on here.
 Log line 040: routine entry, nothing to act on here.
 VALUE: 17
 NEXT: data/amber.txt</code></pre>
-  <p>Because each file names the next, the agent must read them one at a time: eight turns,
-     each adding about 650 tokens to the conversation. Four <strong>decoy</strong> files sit in
+  <p>Because each file names the next, and the agent gets only <code>read_file</code> and
+     <code>write_file</code>, it must read them one at a time: eight turns, each adding about
+     650 tokens to the conversation. (With <code>grep</code>, a real model pulled every VALUE
+     and NEXT line in one call, and no compaction happened; see the
+     <a href="#live">first live run</a>. The tools are limited with
+     <code>run_task(..., tools=...)</code>.) Four <strong>decoy</strong> files sit in
      the same folder with values 100–400 that must not be counted. An agent that loses track
      of which files were in the chain gets an obviously wrong total. The right total is
      <strong>156</strong>.</p>
@@ -132,9 +136,11 @@ NEXT: data/amber.txt</code></pre>
       <tr><th>Run</th><th>Budget</th><th>What happens</th></tr>
       <tr><td>1. without compaction</td><td>unlimited</td>
           <td>Every file read stays in the conversation.</td></tr>
-      <tr><td>2. with compaction</td><td>2,500 tokens</td>
-          <td>Before each request, the compactor checks the size. Over budget, it keeps the
-              newest 6 messages and replaces everything older with a summary.</td></tr>
+      <tr><td>2. with compaction</td><td>5,000 tokens</td>
+          <td>Before each request, the compactor checks the size: the messages plus the system
+              prompt and tool schemas, which go out with every request. Over budget, it keeps up
+              to the newest 6 messages, fewer if needed so that what is kept fits in half the
+              budget, and replaces everything older with a summary.</td></tr>
     </table>
   </div>
 
@@ -159,7 +165,8 @@ tool: ...VALUE: 4...         ┘</code></pre>
 
   <h3>How it is measured</h3>
   <p>The demo wraps the provider in a <code>Meter</code> that records the size of every
-     request, the agent's and the compactor's summary requests, at four characters per token.
+     request, the agent's and the compactor's summary requests, at four characters per token,
+     counting the system prompt and tool schemas the same way the compactor does.
      After each run it reads <code>TOTAL.txt</code>.</p>
 
   <!-- ------------------------------------------------------------------ -->
@@ -202,7 +209,7 @@ assistant: Total of the VALUEs I can see: 156.
 assistant: Done: the total is in TOTAL.txt.
 
 request sizes (estimated tokens), in order:
-  241 886 1531 2176 2821 3467 4112 4757 5409 5481
+  409 1054 1699 2344 2989 3635 4280 4925 5577 5649
 
 === run 2: with compaction ===
 user: Start at data/start.txt. Each file in the chain has a VALUE and names the NEXT file to read. Follow the chain to the end, add up the VALUEs of the files in the chain only, and write the total to TOTAL.txt as a single number.
@@ -214,19 +221,15 @@ user: Start at data/start.txt. Each file in the chain has a VALUE and names the 
   &lt;- 43 lines; VALUE: 8; NEXT: data/cedar.txt
   -&gt; read_file(path='data/cedar.txt')
   &lt;- 43 lines; VALUE: 23; NEXT: data/delta.txt
-  ** compacted: 3 messages folded, ~2643 -&gt; ~1989 tokens
   -&gt; read_file(path='data/delta.txt')
   &lt;- 43 lines; VALUE: 15; NEXT: data/ember.txt
-  ** compacted: 3 messages folded, ~2634 -&gt; ~1994 tokens
   -&gt; read_file(path='data/ember.txt')
   &lt;- 43 lines; VALUE: 4; NEXT: data/fjord.txt
-  ** compacted: 3 messages folded, ~2639 -&gt; ~1998 tokens
   -&gt; read_file(path='data/fjord.txt')
   &lt;- 43 lines; VALUE: 16; NEXT: data/grove.txt
-  ** compacted: 3 messages folded, ~2643 -&gt; ~2003 tokens
   -&gt; read_file(path='data/grove.txt')
   &lt;- 43 lines; VALUE: 31; NEXT: none
-  ** compacted: 3 messages folded, ~2655 -&gt; ~2015 tokens
+  ** compacted: 11 messages folded, ~5577 -&gt; ~2361 tokens (target 2500)
 assistant: Total of the VALUEs I can see: 156.
   -&gt; write_file(path='TOTAL.txt', content='156\n')
   ? approver: write_file -&gt; yes
@@ -240,67 +243,324 @@ the summary the conversation now starts with:
   Running total: 105
 
 request sizes (estimated tokens), in order:
-  241 886 1531 2176 2167 2172 2176 2181 2193 2265
+  409 1054 1699 2344 2989 3635 4280 4925 2361 2433
 
 === before / after ===
                             without compaction   with compaction
 agent requests                              10                10
-compactions                                  0                 5
-largest request                           5481              2265
+compactions                                  0                 1
+largest request (estimate)                5649              4925
+largest request (reported)                   -                 -
 messages at the end                         20                10
-tokens sent (estimate)                   30881             21309
+tokens sent (estimate)                   32561             28984
 tokens sent (reported)                       -                 -
 TOTAL.txt                                  156               156
 correct                                    yes               yes
-(compaction budget: 2500 tokens; expected total: 156)</code></pre>
-  <p class="dim">A live run is still to come; its output and analysis will be added here.</p>
+(compaction budget: 5000 tokens; expected total: 156)</code></pre>
+  <p class="dim">Full output: <a href="output/offline.txt"><code>output/offline.txt</code></a>.</p>
+  <h3>Live run: <code>anthropic</code> / <code>claude-sonnet-5-5</code></h3>
+  <p>At the current budget of 5,000. The task has only <code>read_file</code> and
+     <code>write_file</code>, and the budget counts the tool schemas. The model's full summary
+     is printed at the end.</p>
+<pre><code>$ python3 demos/context/context.py
+provider: anthropic - claude-sonnet-5-5
+
+=== run 1: without compaction ===
+user: Start at data/start.txt. Each file in the chain has a VALUE and names the NEXT file to read. Follow the chain to the end, add up the VALUEs of the files in the chain only, and write the total to TOTAL.txt as a single number.
+  [tokens in 871, out 52]
+  -&gt; read_file(path='data/start.txt')
+  &lt;- 43 lines; VALUE: 17; NEXT: data/amber.txt
+  [tokens in 1843, out 53]
+  -&gt; read_file(path='data/amber.txt')
+  &lt;- 43 lines; VALUE: 42; NEXT: data/birch.txt
+  [tokens in 2816, out 53]
+  -&gt; read_file(path='data/birch.txt')
+  &lt;- 43 lines; VALUE: 8; NEXT: data/cedar.txt
+  [tokens in 3790, out 54]
+  -&gt; read_file(path='data/cedar.txt')
+  &lt;- 43 lines; VALUE: 23; NEXT: data/delta.txt
+  [tokens in 4764, out 53]
+  -&gt; read_file(path='data/delta.txt')
+  &lt;- 43 lines; VALUE: 15; NEXT: data/ember.txt
+  [tokens in 5737, out 53]
+  -&gt; read_file(path='data/ember.txt')
+  &lt;- 43 lines; VALUE: 4; NEXT: data/fjord.txt
+  [tokens in 6711, out 54]
+  -&gt; read_file(path='data/fjord.txt')
+  &lt;- 43 lines; VALUE: 16; NEXT: data/grove.txt
+  [tokens in 7685, out 53]
+  -&gt; read_file(path='data/grove.txt')
+  &lt;- 43 lines; VALUE: 31; NEXT: none
+  [tokens in 8662, out 171]
+  -&gt; write_file(path='TOTAL.txt', content='156\n')
+  ? approver: write_file -&gt; yes
+  &lt;- Wrote 4 chars to TOTAL.txt
+  -&gt; read_file(path='TOTAL.txt')
+  &lt;- 1	156
+assistant: I followed the chain through 8 files and wrote the total, 156, to `TOTAL.txt`. I read the file back to check it.
+  [... 2 more lines of the answer: see the full output]
+  [tokens in 8867, out 121]
+
+request sizes (estimated tokens), in order:
+  409 1068 1727 2386 3045 3705 4364 5023 5689 5821
+request sizes (reported by the vendor), in order:
+  871 1843 2816 3790 4764 5737 6711 7685 8662 8867
+
+=== run 2: with compaction ===
+user: Start at data/start.txt. Each file in the chain has a VALUE and names the NEXT file to read. Follow the chain to the end, add up the VALUEs of the files in the chain only, and write the total to TOTAL.txt as a single number.
+  [tokens in 871, out 52]
+  -&gt; read_file(path='data/start.txt')
+  &lt;- 43 lines; VALUE: 17; NEXT: data/amber.txt
+  [tokens in 1843, out 53]
+  -&gt; read_file(path='data/amber.txt')
+  &lt;- 43 lines; VALUE: 42; NEXT: data/birch.txt
+  [tokens in 2816, out 53]
+  -&gt; read_file(path='data/birch.txt')
+  &lt;- 43 lines; VALUE: 8; NEXT: data/cedar.txt
+  [tokens in 3790, out 54]
+  -&gt; read_file(path='data/cedar.txt')
+  &lt;- 43 lines; VALUE: 23; NEXT: data/delta.txt
+  [tokens in 4764, out 53]
+  -&gt; read_file(path='data/delta.txt')
+  &lt;- 43 lines; VALUE: 15; NEXT: data/ember.txt
+  ** compacted: 9 messages folded, ~5795 -&gt; ~2093 tokens (target 2500)
+  [tokens in 2308, out 53]
+  -&gt; read_file(path='data/ember.txt')
+  &lt;- 43 lines; VALUE: 4; NEXT: data/fjord.txt
+  [tokens in 3282, out 54]
+  -&gt; read_file(path='data/fjord.txt')
+  &lt;- 43 lines; VALUE: 16; NEXT: data/grove.txt
+  [tokens in 4256, out 53]
+  -&gt; read_file(path='data/grove.txt')
+  &lt;- 43 lines; VALUE: 31; NEXT: none
+  ** compacted: 7 messages folded, ~5323 -&gt; ~2198 tokens (target 2500)
+assistant: Sum: 125 + 31 = 156.
+  [tokens in 2373, out 143]
+  -&gt; write_file(path='TOTAL.txt', content='156\n')
+  ? approver: write_file -&gt; yes
+  &lt;- Wrote 4 chars to TOTAL.txt
+  -&gt; read_file(path='TOTAL.txt')
+  &lt;- 1	156
+assistant: I followed the chain from `data/start.txt` through 8 files, ending at `data/grove.txt`, whose NEXT says it is the last file. I wrote the total, **156**, to `TOTAL.txt`.
+  [... 1 more lines of the answer: see the full output]
+  [tokens in 2594, out 131]
+
+the summary the conversation now starts with:
+  [Conversation so far, compacted]
+  **Original task:** Start at data/start.txt, follow the chain of files (each has a VALUE and a NEXT pointer) to the end, sum the VALUEs of chain files only, and write the total as a single number to TOTAL.txt.
+  
+  **Progress (7 chain files read, chain not finished):**
+  1. data/start.txt: VALUE 17 → NEXT data/amber.txt
+  2. data/amber.txt: VALUE 42 → data/birch.txt
+  3. data/birch.txt: VALUE 8 → data/cedar.txt
+  4. data/cedar.txt: VALUE 23 → data/delta.txt
+  5. data/delta.txt: VALUE 15 → data/ember.txt
+  6. data/ember.txt: VALUE 4 → data/fjord.txt
+  7. data/fjord.txt: VALUE 16 → data/grove.txt
+  
+  **Running sum:** 17+42+8+23+15+4+16 = **125** (through fjord.txt; not final).
+  
+  **Observations:** Each file starts with a "Chain file N." header, then about 40 filler lines ("Log line NNN: routine entry, nothing to act on here."), then the real data at lines 42-43 (`VALUE: n`, `NEXT: path`). The filler contains no instructions and can be ignored. Tool output is truncated in the middle of the filler, but the VALUE/NEXT lines are intact.
+  
+  **Files created/edited:** None. TOTAL.txt has not been written.
+  
+  **Remaining:**
+  - Read data/grove.txt (chain file 8) and keep following NEXT pointers until a file has no NEXT or signals the end.
+  - Add each further VALUE to the running sum of 125.
+  - Write the final total as a single number to TOTAL.txt.
+  
+  **Unresolved errors:** None.
+
+request sizes (estimated tokens), in order:
+  409 1068 1727 2386 3045 1338 1997 2657 1372 1509
+request sizes (reported by the vendor), in order:
+  871 1843 2816 3790 4764 2308 3282 4256 2373 2594
+
+=== before / after ===
+                            without compaction   with compaction
+agent requests                              10                10
+compactions                                  0                 2
+largest request (estimate)                5821              3045
+largest request (reported)                8867              4764
+messages at the end                         21                 7
+tokens sent (estimate)                   33237             21850
+tokens sent (reported)                   51746             35664
+TOTAL.txt                                  156               156
+correct                                    yes               yes
+(compaction budget: 5000 tokens; expected total: 156)</code></pre>
+  <p class="dim">Full output: <a href="output/live.txt"><code>output/live.txt</code></a>. Long model answers are cut to their first line above.</p>
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="analysis">Analysis</h2>
   <h3>Request size, request by request</h3>
   <p class="legend"><span><i style="background:var(--bar-a)"></i>without compaction</span>
-     <span><i style="background:var(--bar-b)"></i>with compaction (budget 2,500)</span></p>
+     <span><i style="background:var(--bar-b)"></i>with compaction (budget 5,000)</span></p>
   <div class="table-wrap">
     <table class="bars">
       <tr><th class="num">request</th><th></th><th class="num">tokens (without / with)</th></tr>
-      <tr><td class="num">1</td><td style="width:100%"><div class="bar a" style="width:4.4%"></div><div class="bar b" style="width:4.4%"></div></td><td class="num">241 / 241</td></tr>
-      <tr><td class="num">2</td><td style="width:100%"><div class="bar a" style="width:16.2%"></div><div class="bar b" style="width:16.2%"></div></td><td class="num">886 / 886</td></tr>
-      <tr><td class="num">3</td><td style="width:100%"><div class="bar a" style="width:27.9%"></div><div class="bar b" style="width:27.9%"></div></td><td class="num">1,531 / 1,531</td></tr>
-      <tr><td class="num">4</td><td style="width:100%"><div class="bar a" style="width:39.7%"></div><div class="bar b" style="width:39.7%"></div></td><td class="num">2,176 / 2,176</td></tr>
-      <tr><td class="num">5</td><td style="width:100%"><div class="bar a" style="width:51.5%"></div><div class="bar b" style="width:39.5%"></div></td><td class="num">2,821 / 2,167</td></tr>
-      <tr><td class="num">6</td><td style="width:100%"><div class="bar a" style="width:63.3%"></div><div class="bar b" style="width:39.6%"></div></td><td class="num">3,467 / 2,172</td></tr>
-      <tr><td class="num">7</td><td style="width:100%"><div class="bar a" style="width:75.0%"></div><div class="bar b" style="width:39.7%"></div></td><td class="num">4,112 / 2,176</td></tr>
-      <tr><td class="num">8</td><td style="width:100%"><div class="bar a" style="width:86.8%"></div><div class="bar b" style="width:39.8%"></div></td><td class="num">4,757 / 2,181</td></tr>
-      <tr><td class="num">9</td><td style="width:100%"><div class="bar a" style="width:98.7%"></div><div class="bar b" style="width:40.0%"></div></td><td class="num">5,409 / 2,193</td></tr>
-      <tr><td class="num">10</td><td style="width:100%"><div class="bar a" style="width:100.0%"></div><div class="bar b" style="width:41.3%"></div></td><td class="num">5,481 / 2,265</td></tr>
+      <tr><td class="num">1</td><td style="width:100%"><div class="bar a" style="width:7.2%"></div><div class="bar b" style="width:7.2%"></div></td><td class="num">409 / 409</td></tr>
+      <tr><td class="num">2</td><td style="width:100%"><div class="bar a" style="width:18.7%"></div><div class="bar b" style="width:18.7%"></div></td><td class="num">1,054 / 1,054</td></tr>
+      <tr><td class="num">3</td><td style="width:100%"><div class="bar a" style="width:30.1%"></div><div class="bar b" style="width:30.1%"></div></td><td class="num">1,699 / 1,699</td></tr>
+      <tr><td class="num">4</td><td style="width:100%"><div class="bar a" style="width:41.5%"></div><div class="bar b" style="width:41.5%"></div></td><td class="num">2,344 / 2,344</td></tr>
+      <tr><td class="num">5</td><td style="width:100%"><div class="bar a" style="width:52.9%"></div><div class="bar b" style="width:52.9%"></div></td><td class="num">2,989 / 2,989</td></tr>
+      <tr><td class="num">6</td><td style="width:100%"><div class="bar a" style="width:64.3%"></div><div class="bar b" style="width:64.3%"></div></td><td class="num">3,635 / 3,635</td></tr>
+      <tr><td class="num">7</td><td style="width:100%"><div class="bar a" style="width:75.8%"></div><div class="bar b" style="width:75.8%"></div></td><td class="num">4,280 / 4,280</td></tr>
+      <tr><td class="num">8</td><td style="width:100%"><div class="bar a" style="width:87.2%"></div><div class="bar b" style="width:87.2%"></div></td><td class="num">4,925 / 4,925</td></tr>
+      <tr><td class="num">9</td><td style="width:100%"><div class="bar a" style="width:98.7%"></div><div class="bar b" style="width:41.8%"></div></td><td class="num">5,577 / 2,361</td></tr>
+      <tr><td class="num">10</td><td style="width:100%"><div class="bar a" style="width:100.0%"></div><div class="bar b" style="width:43.1%"></div></td><td class="num">5,649 / 2,433</td></tr>
     </table>
   </div>
   <p>Without compaction the size climbs by about 650 tokens per file read. With compaction it
-     follows the same line until it passes the budget at the fifth request, then stays
-     level: each new file read is offset by older turns folded away.</p>
+     follows the same line until the ninth request would pass the 5,000 budget. One fold
+     brings it to about 2,350, under its target of half the budget (2,500), and the task
+     ends before it needs another. Every request stays under the budget.</p>
 
   <h3>Before and after</h3>
   <div class="table-wrap">
     <table>
       <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
       <tr><td>agent requests</td><td class="num">10</td><td class="num">10</td></tr>
-      <tr><td>compactions</td><td class="num">0</td><td class="num">5</td></tr>
-      <tr><td>largest request</td><td class="num">5,481</td><td class="num">2,265</td></tr>
+      <tr><td>compactions</td><td class="num">0</td><td class="num">1</td></tr>
+      <tr><td>largest request (estimate)</td><td class="num">5,649</td><td class="num">4,925</td></tr>
+      <tr><td>largest request (reported)</td><td class="num">-</td><td class="num">-</td></tr>
       <tr><td>messages at the end</td><td class="num">20</td><td class="num">10</td></tr>
-      <tr><td>tokens sent (estimate)</td><td class="num">30,881</td><td class="num">21,309</td></tr>
+      <tr><td>tokens sent (estimate)</td><td class="num">32,561</td><td class="num">28,984</td></tr>
       <tr><td>tokens sent (reported)</td><td class="num">-</td><td class="num">-</td></tr>
       <tr><td>TOTAL.txt</td><td class="num">156</td><td class="num">156</td></tr>
       <tr><td>correct</td><td class="num">yes</td><td class="num">yes</td></tr>
     </table>
   </div>
   <ul>
-    <li><strong>Largest request:</strong> less than half. On a longer task the gap keeps
-        widening: without compaction it grows with every step; with it, it stays near the
-        budget, so the task never outgrows the context window.</li>
-    <li><strong>Total tokens:</strong> about a third fewer, <em>including</em> the summary
-        requests. Summaries are not free: each compaction is an extra model call.</li>
-    <li><strong>The answer survived.</strong> The final summary still lists every value
-        folded so far, so the total is right with only 10 messages left instead of 20.</li>
+    <li><strong>One fold, and it reached its target.</strong> After folding, the request was
+        about 2,350 tokens, under the 2,500 target, so there is room for several more steps
+        before the next fold, and no <code>budget_warning</code>.</li>
+    <li><strong>Total tokens: about 11% fewer</strong> on this eight-step task, including the
+        summary request. The saving grows with the length of the task: without compaction
+        every request carries everything before it; with it, the size stays within the
+        budget however long the task runs.</li>
+    <li><strong>The answer survived.</strong> The summary lists every value folded so far, so
+        the total is right with 10 messages left instead of 20.</li>
+  </ul>
+
+  <h3 id="live-5000">Live run: two folds, each reaching its target</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
+      <tr><td>agent requests</td><td class="num">10</td><td class="num">10</td></tr>
+      <tr><td>compactions</td><td class="num">0</td><td class="num">2</td></tr>
+      <tr><td>largest request (reported)</td><td class="num">8,867</td><td class="num">4,764</td></tr>
+      <tr><td>messages at the end</td><td class="num">21</td><td class="num">7</td></tr>
+      <tr><td>tokens sent (reported, incl. summaries)</td><td class="num">51,746</td><td class="num">35,664</td></tr>
+      <tr><td>TOTAL.txt</td><td class="num">156</td><td class="num">156</td></tr>
+    </table>
+  </div>
+  <ul>
+    <li><span class="ok">This is the behaviour the demo is for.</span> The conversation grew
+        normally for five reads. Before the sixth request it would have passed 5,000, so the
+        compactor folded nine messages and brought it to about 2,100, under its target of
+        2,500. Three more reads later it folded again, to about 2,200. Two summary calls
+        instead of the eight it made at a budget of 2,500.</li>
+    <li><strong>No budget warning</strong>: both folds reached their target, so there was
+        room to work between them.</li>
+    <li><strong>Every request within budget</strong> by the vendor's count (largest 4,764);
+        without compaction they climbed to 8,867. 31% fewer tokens in total, including the
+        summaries, and the answer is still 156.</li>
+    <li><strong>The summary kept every value</strong> and a running total, “125 (through
+        fjord.txt; not final)”, and the model's interim answer, “Sum: 125 + 31 = 156”, adds the
+        last value to it.</li>
+  </ul>
+
+  <h3 id="live-now">Earlier live run at a budget of 2,500: within budget every time, but folding at almost every step</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
+      <tr><td>agent requests</td><td class="num">10</td><td class="num">10</td></tr>
+      <tr><td>compactions</td><td class="num">0</td><td class="num">8</td></tr>
+      <tr><td>largest request (reported)</td><td class="num">8,891</td><td class="num">2,407</td></tr>
+      <tr><td>largest request (estimate)</td><td class="num">5,829</td><td class="num">1,365</td></tr>
+      <tr><td>messages at the end</td><td class="num">21</td><td class="num">5</td></tr>
+      <tr><td>tokens sent (reported, incl. summaries)</td><td class="num">51,761</td><td class="num">31,390</td></tr>
+      <tr><td>TOTAL.txt</td><td class="num">156</td><td class="num">156</td></tr>
+    </table>
+  </div>
+  <ul>
+    <li><span class="ok">The budget held as a cap.</span> Every request the vendor counted
+        was at most 2,407 tokens against the 2,500 budget; without compaction they climbed
+        to 8,891. 39% fewer tokens in total, including the summary calls, and the answer is
+        still 156.</li>
+    <li><strong>The summary kept every value.</strong> The last one lists all eight files
+        with their VALUE and the final total, and the model's interim answer, “Total: 125 +
+        31 = 156”, adds the summary's total for the first seven files to the one it could
+        still see.</li>
+  </ul>
+  <p><span class="bad">Folding to half the budget had no effect here: still 8 folds in 10
+     requests.</span> The demo now prints reported sizes next to the estimates, and they show
+     why:</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Part of each request after a fold</th><th class="num">reported tokens</th></tr>
+      <tr><td>Fixed part: system prompt and the two tool schemas (first request)</td>
+          <td class="num">about 870</td></tr>
+      <tr><td>The newest file read, which is always kept</td><td class="num">about 970</td></tr>
+      <tr><td>The summary</td><td class="num">a few hundred</td></tr>
+      <tr><td><strong>Smallest possible request after folding</strong></td>
+          <td class="num"><strong>about 2,200</strong></td></tr>
+    </table>
+  </div>
+  <ul>
+    <li>Half the budget is 1,250. The fixed part and one file read already pass that, so the
+        target cannot be reached: the compactor keeps the minimum, lands at about 2,200, and
+        the next read pushes it over 2,500 again.</li>
+    <li><strong>The offline run hid this.</strong> Offline, the fixed part is only estimated:
+        409 tokens, against 870 reported. The vendor counts tool definitions more heavily
+        than four characters per token suggests. Live, the compactor corrects its estimate
+        from the reported sizes, but no correction makes 2,200 fit in 1,250.</li>
+    <li><strong>The compactor does not say so.</strong> It folds every step without warning
+        that its target is out of reach, which is a real gap: with a realistic budget it
+        would not arise, but nothing tells you when the budget is too small for the
+        task.</li>
+  </ul>
+  <p><strong>Both fixed since:</strong> the demo's budget is now 5,000, which leaves room for
+     the fixed part, a summary and a couple of reads after a fold, and the compactor emits a
+     <code>budget_warning</code> the first time a fold cannot reach its target. At 2,500 this
+     run would have warned at its first fold. The <a href="#live-5000">live run at 5,000</a>
+     folds twice, each time reaching its target.</p>
+
+  <h3 id="live">First live run: no compaction happened</h3>
+  <p><span class="bad">The live run never tested compaction.</span> The model did not follow the
+     chain. After reading <code>start.txt</code> it searched every file for
+     <code>VALUE|NEXT</code> in one <code>grep</code> call, which returned all twelve files'
+     VALUE and NEXT lines in 24 short lines. From those it followed the chain in its head,
+     left the decoys out, and wrote 156. Correct, in both runs, in five requests.</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
+      <tr><td>agent requests</td><td class="num">5</td><td class="num">5</td></tr>
+      <tr><td>compactions</td><td class="num">0</td><td class="num">0</td></tr>
+      <tr><td>largest request (estimate)</td><td class="num">1,377</td><td class="num">1,365</td></tr>
+      <tr><td>tokens sent (reported)</td><td class="num">13,579</td><td class="num">14,014</td></tr>
+      <tr><td>TOTAL.txt</td><td class="num">156</td><td class="num">156</td></tr>
+    </table>
+  </div>
+  <ul>
+    <li><strong>The task was too easy to shortcut.</strong> The chain was meant to force eight
+        reads, but <code>grep</code> sees every file at once. The conversation never came near
+        the 2,500-token budget, so the two runs are the same run twice.</li>
+    <li><strong>That is good agent behaviour.</strong> Reading only the lines that matter is
+        the best way to keep a context small. The demo needs a task where that is not
+        possible.</li>
+    <li><strong>The budget measures less than the model receives.</strong> The estimate for
+        run 1 was 4,809 tokens; the vendor reported 13,579. <code>estimate_tokens()</code>
+        counts the messages, and the compactor's budget counts only those. Every request also
+        carries the tool schemas, which the vendor counts and the budget does not. On the first
+        request the vendor reported 1,619 tokens against an estimate of 241: about 1,400 tokens
+        of fixed overhead on every call. So a budget of 2,500 means a real request of about
+        3,900, and compaction starts later than the setting suggests.</li>
+    <li><strong>Both fixed since.</strong> The task now gets only <code>read_file</code> and
+        <code>write_file</code>, and <code>run_task()</code> counts the system prompt and tool
+        schemas against the budget (<code>estimate_overhead()</code> in
+        <code>context.py</code>). The <a href="#live-now">live run above</a> shows a live
+        model working through compaction.</li>
   </ul>
 
   <h2 id="bug">Found by this demo</h2>
@@ -332,16 +592,16 @@ correct                                    yes               yes
       or may write “read five files” and lose the numbers. If a task depends on details found
       along the way, the summary prompt has to say so, or the agent should write them to a
       file as it goes.</p>
-    <p style="margin-bottom:0"><strong>The budget is an estimate.</strong> Four characters per
-      token is rough; code and non-English text use more tokens per character. Set the budget
-      well below the model's real context window.</p>
+    <p style="margin-bottom:0"><strong>The first request is an estimate.</strong> Once the
+      vendor has reported a size, the compactor measures from it. Until then, and offline, it
+      uses four characters per token, which is rough: code, digits and non-English text use
+      more tokens per character. Set the budget well below the model's real context
+      window.</p>
   </div>
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="next">Next steps</h2>
   <ul>
-    <li><strong>Run it live</strong> and add the output and analysis here. The question that
-        matters: does a real model's summary keep the values?</li>
     <li><strong>Make <code>keep_recent</code> a <code>run_task()</code> option</strong>; today
         only the budget can be set from there.</li>
     <li><strong>Try a summary prompt that names intermediate results</strong> if a live run

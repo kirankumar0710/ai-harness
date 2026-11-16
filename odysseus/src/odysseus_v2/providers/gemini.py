@@ -142,4 +142,5 @@ class GeminiProvider(Provider):
             tool_calls=tool_calls,
             usage={"input": usage.get("promptTokenCount", 0),
                    "output": usage.get("candidatesTokenCount", 0)},
+            truncated=candidates[0].get("finishReason") == "MAX_TOKENS",
         )

@@ -105,15 +105,15 @@
   <!-- ------------------------------------------------------------------ -->
   <h2 id="how">How it works</h2>
 
-  <h3>The project and its hidden fact</h3>
+  <h3>The project and its hidden facts</h3>
   <p>The throwaway project has the familiar <code>average()</code> bug, but its checks are
-     not where a model expects tests to be:</p>
+     not where a model expects tests to be, and they refuse to run without a setting:</p>
 <pre><code><span class="dim"># calc.py</span>
 def average(values):
     """Return the arithmetic mean of a non-empty list of numbers."""
     return sum(values) / (len(values) - 1)
 
-<span class="dim"># checks/check_calc.py   (and an empty checks/__init__.py)</span>
+<span class="dim"># checks/check_calc.py</span>
 import unittest
 
 from calc import average
@@ -121,22 +121,36 @@ from calc import average
 
 class AverageCheck(unittest.TestCase):
     def test_average(self):
-        self.assertEqual(average([2, 4, 6]), 4)</code></pre>
-  <p>Python's test runner looks for files named <code>test*.py</code>, so the obvious command
-     runs nothing:</p>
+        self.assertEqual(average([2, 4, 6]), 4)
+
+<span class="dim"># checks/__init__.py</span>
+import os
+
+if os.environ.get("CALC_CHECKS") != "1":
+    raise ImportError("these checks only run with CALC_CHECKS=1 set")</code></pre>
+  <p>So every obvious command fails, and only the error says why:</p>
 <pre><code>$ python3 -m unittest
-Ran 0 tests in 0.000s
-NO TESTS RAN                      <span class="dim"># exit code 5</span>
+ImportError: these checks only run with CALC_CHECKS=1 set
+FAILED (errors=1)
 
 $ python3 -m unittest discover -s checks -p 'check_*.py' -t .
+ImportError: these checks only run with CALC_CHECKS=1 set
+FAILED (errors=1)
+
+$ CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .
 Ran 1 test in 0.000s
 OK</code></pre>
-  <p>Nothing in the project says which command is right. A model has to find out by trying,
-     which is exactly the kind of fact worth remembering.</p>
+  <p>The file names (<code>check_*.py</code>) can be seen in a listing, but the setting can
+     only be learned by running the checks and reading the error, or by opening
+     <code>checks/__init__.py</code>, which models rarely do. That makes it a fact worth
+     remembering: the run that discovers it pays for a failed run; the next one should
+     not.</p>
+  <p class="dim">An earlier version hid only the file names. A live model worked those out by
+     reading one file, so memory had little to save (see the live run below).</p>
 
   <h3>The two runs</h3>
   <p>Both runs send the same task, through <code>run_task()</code> in safe mode:</p>
-<pre><code>The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project.</code></pre>
+<pre><code>The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project, unless it is already in project memory.</code></pre>
   <div class="table-wrap">
     <table>
       <tr><th>Run</th><th>Before it starts</th><th>What it shows</th></tr>
@@ -157,9 +171,18 @@ OK</code></pre>
      run 2 the model's system prompt contains:</p>
 <pre><code>Project memory (AGENT_MEMORY.md):
 - Checks live in checks/check_*.py, so plain 'python3 -m unittest' finds none; run them with: python3 -m unittest discover -s checks -p 'check_*.py' -t .</code></pre>
+  <p>When there is no memory yet, the section says so: <code>Project memory
+     (AGENT_MEMORY.md): none yet. Nothing has been saved for this project.</code> Without that
+     line, a model that knows about the file goes looking for it.</p>
   <p><code>remember</code> writes a file, so the gate treats it as a side effect: blocked in
      read-only mode, asked about in safe mode. The demo's approver allows file edits,
-     <code>remember</code>, and plain <code>python3 -m unittest</code> commands.</p>
+     <code>remember</code>, and <code>python -m unittest</code> commands. A test command may
+     start with settings such as <code>CALC_CHECKS=1</code>, and end with
+     <code>2&gt;&amp;1</code> or <code>| tail</code>, which only change how output is shown; any other shell operator (<code>;</code>, <code>&amp;&amp;</code>, a pipe into
+     another program) means a second command, and is refused. A refusal says what would be
+     approved, so the model can try again in that form.</p>
+  <p>The task ends “unless it is already in project memory”, so the second run does not save
+     the same fact again, or notes about itself.</p>
 
   <h3>What the table measures</h3>
   <div class="table-wrap">
@@ -170,7 +193,8 @@ OK</code></pre>
       <tr><td>wasted calls</td><td>tool calls that achieved nothing: an error, a block, or a
           test run that found no tests</td></tr>
       <tr><td>tokens sent (estimate)</td><td>the size of every request added up, at four
-          characters per token: what the runs cost in input</td></tr>
+          characters per token, including the system prompt and tool schemas: what the runs
+          cost in input</td></tr>
       <tr><td>tokens sent (reported)</td><td>the same, as the vendor counted it (live runs
           only)</td></tr>
       <tr><td>checks pass</td><td>the script runs the right command itself at the end</td></tr>
@@ -193,10 +217,10 @@ python3 demos/memory/memory.py             # a real model; provider and key as i
 <pre><code>$ python3 demos/memory/memory.py --offline
 provider: offline - scripted replies
 
-sandbox: /var/folders/.../T/odysseus-xxxx
+sandbox: &lt;tmp&gt;/odysseus-memory-0ai_y8yu
 
 === run 1: without memory ===
-user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project.
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project, unless it is already in project memory.
   -&gt; list_files()
   &lt;- calc.py  ...  checks/check_calc.py  (3 lines)
   -&gt; read_file(path='calc.py')
@@ -206,51 +230,142 @@ user: The checks for this project fail. Fix the bug in calc.py and confirm the c
   &lt;- Edited calc.py
   -&gt; bash(command='python3 -m unittest')
   ? approver: bash -&gt; yes
-  &lt;- ----------------------------------------------------------------------  ...  (exit 5)  (4 lines)
-assistant: No tests ran; the checks are not named test_*.py.
-  -&gt; bash(command="python3 -m unittest discover -s checks -p 'check_*.py' -t .")
+  &lt;- E  ...  (exit 1)  (18 lines)
+assistant: The checks package refuses to load without CALC_CHECKS=1, and the checks are named check_*.py.
+  -&gt; bash(command="CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .")
   ? approver: bash -&gt; yes
   &lt;- .  ...  OK  (4 lines)
-  -&gt; remember(note="Checks live in checks/check_*.py, so plain 'python3 -m unittest' f...')
+  -&gt; remember(note="Checks live in checks/check_*.py and only run with CALC_CHECKS=1 s...')
   ? approver: remember -&gt; yes
   &lt;- Remembered in AGENT_MEMORY.md
 assistant: Fixed average() and the check passes.
 
 memory section the model was given:
-  (none)
+  Project memory (AGENT_MEMORY.md): none yet. Nothing has been saved for this project.
 
 AGENT_MEMORY.md after this run:
-  - Checks live in checks/check_*.py, so plain 'python3 -m unittest' finds none; run them with: python3 -m unittest discover -s checks -p 'check_*.py' -t .
+  - Checks live in checks/check_*.py and only run with CALC_CHECKS=1 set; run them with: CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .
 
 === run 2: with memory ===
-user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project.
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project, unless it is already in project memory.
   -&gt; read_file(path='calc.py')
   &lt;- 1	def average(values):  ...  3	    return sum(values) / (len(values) - 1)  (3 lines)
   -&gt; edit_file(path='calc.py', old='(len(values) - 1)', new='len(values)')
   ? approver: edit_file -&gt; yes
   &lt;- Edited calc.py
-  -&gt; bash(command="python3 -m unittest discover -s checks -p 'check_*.py' -t .")
+  -&gt; bash(command="CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .")
   ? approver: bash -&gt; yes
   &lt;- .  ...  OK  (4 lines)
 assistant: Fixed average() and the check passes, using the command from project memory.
 
 memory section the model was given:
   Project memory (AGENT_MEMORY.md):
-  - Checks live in checks/check_*.py, so plain 'python3 -m unittest' finds none; run them with: python3 -m unittest discover -s checks -p 'check_*.py' -t .
+  - Checks live in checks/check_*.py and only run with CALC_CHECKS=1 set; run them with: CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .
 
 AGENT_MEMORY.md after this run:
-  - Checks live in checks/check_*.py, so plain 'python3 -m unittest' finds none; run them with: python3 -m unittest discover -s checks -p 'check_*.py' -t .
+  - Checks live in checks/check_*.py and only run with CALC_CHECKS=1 set; run them with: CALC_CHECKS=1 python3 -m unittest discover -s checks -p 'check_*.py' -t .
 
 === before / after ===
                             without memory   with memory
 model calls                              7             4
 tool calls                               6             3
 wasted calls                             1             0
-tokens sent (estimate)                3247          1618
+tokens sent (estimate)                9176          4518
 tokens sent (reported)                   -             -
 checks pass                            yes           yes
-  wasted (without memory): bash: Ran 0 tests</code></pre>
-  <p class="dim">A live run is still to come; its output and analysis will be added here.</p>
+  wasted (without memory): bash: ImportError: these checks only run with CALC_CHECKS=1 set</code></pre>
+  <p class="dim">Full output: <a href="output/offline.txt"><code>output/offline.txt</code></a>.</p>
+  <h3>Live run: <code>anthropic</code> / <code>claude-sonnet-5-5</code></h3>
+  <p>After the demo fixes. The demo's display cuts long arguments at 70 characters (<code>...</code>), so two of the bash commands look alike here.</p>
+<pre><code>$ python3 demos/memory/memory.py
+provider: anthropic - claude-sonnet-5-5
+
+sandbox: &lt;tmp&gt;/odysseus-memory-lmvs2ovt
+
+=== run 1: without memory ===
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project, unless it is already in project memory.
+  [tokens in 1680, out 73]
+  -&gt; list_files()
+  &lt;- calc.py  ...  checks/check_calc.py  (3 lines)
+  -&gt; read_file(path='calc.py')
+  &lt;- 1	def average(values):  ...  3	    return sum(values) / (len(values) - 1)  (3 lines)
+  [tokens in 1888, out 156]
+  -&gt; read_file(path='checks/check_calc.py')
+  &lt;- 1	import unittest  ...  8	        self.assertEqual(average([2, 4, 6]), 4)  (8 lines)
+  -&gt; edit_file(path='calc.py', old='(len(values) - 1)', new='len(values)')
+  ? approver: edit_file -&gt; yes
+  &lt;- Edited calc.py
+  [tokens in 2189, out 82]
+  -&gt; bash(command='python -m unittest discover -s checks -t . -p "check_*.py" -v 2&gt;&amp;1 | tail -8')
+  ? approver: bash -&gt; yes
+  &lt;- raise ImportError("these checks only run with CALC_CHECKS=1 set")  ...  FAILED (errors=1)  (5 lines)
+  [tokens in 2366, out 105]
+  -&gt; bash(command='cat checks/__init__.py; CALC_CHECKS=1 python -m unittest discover -s checks -t . -p "check_*.py" -v 2&gt;&amp;1 | tail -8')
+  ? approver: bash -&gt; no
+  !! BLOCKED: not approved: only 'python3 -m unittest ...' commands are approved; they may start with VAR
+  [tokens in 2545, out 147]
+  -&gt; read_file(path='checks/__init__.py')
+  &lt;- 1	import os  ...  4	    raise ImportError("these checks only run with CALC_CHE  (4 lines)
+  -&gt; bash(command='CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v 2&gt;&amp;1 | tail -8')
+  ? approver: bash -&gt; yes
+  &lt;- test_average (checks.check_calc.AverageCheck.test_average) ... ok  ...  OK  (4 lines)
+  [tokens in 2868, out 111]
+  -&gt; remember(note='Run checks with: CALC_CHECKS=1 python3 -m unittest discover -s che...')
+  ? approver: remember -&gt; yes
+  &lt;- Remembered in AGENT_MEMORY.md
+assistant: I fixed the bug in `calc.py`, and the check now passes.
+  [... 3 more lines of the answer: see the full output]
+  [tokens in 3001, out 202]
+
+memory section the model was given:
+  Project memory (AGENT_MEMORY.md): none yet. Nothing has been saved for this project.
+
+AGENT_MEMORY.md after this run:
+  - Run checks with: CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v (CALC_CHECKS=1 is required or import fails).
+
+=== run 2: with memory ===
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project, unless it is already in project memory.
+  [tokens in 1732, out 111]
+  -&gt; bash(command='cat calc.py; ls; ls checks; CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v 2&gt;&amp;1 | tail -30')
+  ? approver: bash -&gt; no
+  !! BLOCKED: not approved: only 'python3 -m unittest ...' commands are approved; they may start with VAR
+  [tokens in 1917, out 143]
+  -&gt; read_file(path='calc.py')
+  &lt;- 1	def average(values):  ...  3	    return sum(values) / (len(values) - 1)  (3 lines)
+  -&gt; bash(command='CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v 2&gt;&amp;1 | tail -30')
+  ? approver: bash -&gt; yes
+  &lt;- test_average (checks.check_calc.AverageCheck.test_average) ... FAIL  ...  FAILED (failures=1)  (11 lines)
+  [tokens in 2412, out 104]
+  -&gt; edit_file(path='calc.py', old='(len(values) - 1)', new='len(values)')
+  ? approver: edit_file -&gt; yes
+  &lt;- Edited calc.py
+  [tokens in 2528, out 96]
+  -&gt; bash(command='CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v 2&gt;&amp;1 | tail -30')
+  ? approver: bash -&gt; yes
+  &lt;- test_average (checks.check_calc.AverageCheck.test_average) ... ok  ...  OK  (4 lines)
+assistant: I fixed the bug in `calc.py`: `average` divided by `len(values) - 1`, and it now divides by `len(values)`. I re-ran the checks and the one test, `test_average`, passes.
+  [... 1 more lines of the answer: see the full output]
+  [tokens in 2686, out 194]
+
+memory section the model was given:
+  Project memory (AGENT_MEMORY.md):
+  - Run checks with: CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v (CALC_CHECKS=1 is required or import fails).
+
+AGENT_MEMORY.md after this run:
+  - Run checks with: CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v (CALC_CHECKS=1 is required or import fails).
+
+=== before / after ===
+                            without memory   with memory
+model calls                              7             5
+tool calls                               9             5
+wasted calls                             2             1
+tokens sent (estimate)               10251          6833
+tokens sent (reported)               16537         11275
+checks pass                            yes           yes
+  wasted (without memory): bash: ImportError: these checks only run with CALC_CHECKS=1 set
+  wasted (without memory): bash: BLOCKED: not approved: only 'python3 -m unittest ...' commands are approved; the
+  wasted (with memory): bash: BLOCKED: not approved: only 'python3 -m unittest ...' commands are approved; the</code></pre>
+  <p class="dim">Full output: <a href="output/live.txt"><code>output/live.txt</code></a>. Long model answers are cut to their first line above.</p>
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="analysis">Analysis</h2>
@@ -261,7 +376,7 @@ checks pass                            yes           yes
       <tr><td>model calls</td><td class="num">7</td><td class="num">4</td></tr>
       <tr><td>tool calls</td><td class="num">6</td><td class="num">3</td></tr>
       <tr><td>wasted calls</td><td class="num">1</td><td class="num">0</td></tr>
-      <tr><td>tokens sent (estimate)</td><td class="num">3,247</td><td class="num">1,618</td></tr>
+      <tr><td>tokens sent (estimate)</td><td class="num">8,931</td><td class="num">4,382</td></tr>
       <tr><td>tokens sent (reported)</td><td class="num">-</td><td class="num">-</td></tr>
       <tr><td>checks pass</td><td class="num">yes</td><td class="num">yes</td></tr>
     </table>
@@ -277,14 +392,86 @@ checks pass                            yes           yes
         the file reached run 2's system prompt.</li>
   </ul>
 
-  <h3>What the live run will test</h3>
+  <h3>Live run: run 1 had to fail; run 2 did not</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th class="num">without memory</th><th class="num">with memory</th></tr>
+      <tr><td>model calls</td><td class="num">7</td><td class="num">5</td></tr>
+      <tr><td>tool calls</td><td class="num">9</td><td class="num">5</td></tr>
+      <tr><td>wasted calls</td><td class="num">2</td><td class="num">1</td></tr>
+      <tr><td>tokens sent (reported)</td><td class="num">16,537</td><td class="num">11,275</td></tr>
+      <tr><td>checks pass</td><td class="num">yes</td><td class="num">yes</td></tr>
+    </table>
+  </div>
+  <p><span class="ok">32% fewer tokens, about half the tool calls.</span> Memory saved what it
+     is meant to save: the discovery.</p>
   <ul>
-    <li>Does run 1 save a <em>useful</em> note, the command and why, rather than a summary of
-        the bug fix that will never matter again?</li>
-    <li>Does run 2 use the note straight away, or rediscover the command anyway?</li>
-    <li>Does run 2 save the same fact again? Duplicates are a cost: every line is in every
-        future prompt.</li>
+    <li><strong>Run 1 paid for the discovery.</strong> It found the check files from the
+        listing and guessed the discover command, but the run failed:
+        <code>ImportError: these checks only run with CALC_CHECKS=1 set</code>. It then
+        chained <code>cat checks/__init__.py; CALC_CHECKS=1 ...</code>, which was refused
+        with a reason, so it read the file and ran the command separately, and saved the
+        note.</li>
+    <li><strong>The note is about the project only:</strong> “Run checks with:
+        CALC_CHECKS=1 python3 -m unittest discover ... (CALC_CHECKS=1 is required or import
+        fails).” The previous run's note also recorded the approver's rules (“bash tool only
+        approves 'python3 -m unittest ...' commands ...”), facts about this harness that would
+        go stale if the approver changed. The clearer <code>remember</code> description,
+        “not about your own tools, permissions or this session”, kept them out.</li>
+    <li><strong>Run 2 started from the note</strong>: no listing, no failed import. Its one
+        wasted call was a chain, <code>cat calc.py; ls; ls checks; CALC_CHECKS=1 ...</code>,
+        refused with a reason; it then ran the parts separately.</li>
+    <li><strong>No duplicate note.</strong> Run 2: “project memory already has it, including
+        the <code>CALC_CHECKS=1</code> requirement.”</li>
   </ul>
+  <p><strong>A trade-off this shows.</strong> In the previous run, the note about the
+     approver's rules saved run 2 from that chained command: it had no wasted calls and
+     saved 46%. Keeping such notes out cost one refused call here. It is still the right
+     trade: a wrong note misleads every later session, while a refused call costs one turn
+     and says what to do instead.</p>
+
+  <h3>First live run: the table went the wrong way</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th class="num">without memory</th><th class="num">with memory</th></tr>
+      <tr><td>model calls</td><td class="num">5</td><td class="num">6</td></tr>
+      <tr><td>tool calls</td><td class="num">7</td><td class="num">7</td></tr>
+      <tr><td>wasted calls</td><td class="num">1</td><td class="num">2</td></tr>
+      <tr><td>tokens sent (reported)</td><td class="num">10,345</td><td class="num">13,038</td></tr>
+      <tr><td>fix verified by the agent</td><td class="num">yes</td><td class="num"><span class="bad">no</span></td></tr>
+    </table>
+  </div>
+  <p><strong>Memory itself worked.</strong> Run 2's <em>first</em> call was the correct check
+     command, straight from <code>AGENT_MEMORY.md</code>: no listing, no reading the check file,
+     no guessing. That is the saving the demo was built to show. The numbers hide it for
+     three reasons, all in the demo's design, not in <code>memory.py</code>:</p>
+  <ol>
+    <li><strong>The approver blocked the remembered command.</strong> Run 2 ran it with
+        <code>2&gt;&amp;1</code> appended, to see errors too. The demo's approver refuses any
+        shell operator, so both attempts were blocked, and the agent finished without running
+        the checks. Every extra call and token in run 2 comes from working around that.</li>
+    <li><strong>The hidden fact was not hidden enough.</strong> Run 1 read
+        <code>checks/check_calc.py</code>, worked out the discover command and got it right first
+        time. It never ran plain <code>unittest</code>, so there was little discovery for memory
+        to save.</li>
+    <li><strong>Run 2 saved a bad note.</strong> The task asks every run to save what a future
+        session needs, so run 2 added:
+        <em>“In one session, the bash tool was blocked (‘not approved by user’), so the checks
+        could not be run.”</em> That is a fact about one session's approver, not about the
+        project, and it would now be in every future system prompt. This is the risk under
+        “Something to watch” below, happening for real.</li>
+  </ol>
+  <p><strong>Fixed since:</strong> the approver now accepts a test command ending in
+     <code>2&gt;&amp;1</code> or <code>| tail -N</code>, and the task asks for notes only when
+     they are not already in memory. Reason 2 (the fact was easy to work out) is unchanged:
+     memory still saves the listing,
+     reading and guessing, as run 2 showed. The live run above shows the corrected
+     table.</p>
+  <p><strong>Token counts:</strong> the estimate (2,842) is far below what the vendor reported
+     (10,345) because it counts only the messages and the system prompt. Every request also
+     carries the eight tool schemas, over 1,000 tokens each time. See the
+     <a href="../context/context_walkthrough.html#live">context walkthrough</a>, where the same gap
+     matters more.</p>
 
   <h3>Something to watch</h3>
   <div class="callout">
@@ -302,7 +489,9 @@ checks pass                            yes           yes
   <!-- ------------------------------------------------------------------ -->
   <h2 id="next">Next steps</h2>
   <ul>
-    <li><strong>Run it live</strong> and add the output and analysis here.</li>
+    <li><strong>Approve chains of allowed commands</strong> (an idea, not planned): models
+        often bundle commands with <code>;</code>. An approver could split a chain and approve
+        it when every part is allowed, but parsing shell safely is hard to get right.</li>
     <li><strong>Plant a stale note</strong> (the old, wrong command) before run 2, to see
         whether the model trusts memory over what it observes.</li>
     <li><strong>Run 1 in read-only mode</strong> to show <code>remember</code> blocked by the

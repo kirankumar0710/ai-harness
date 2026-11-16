@@ -3,6 +3,10 @@
     0. Install the package once, from the odysseus project folder:
          pip install -e .
 
+    Offline (no provider, no API key): a scripted model calls the real
+    roll_dice tool and answers from the values it gets back:
+         python3 demos/dice/dice.py --offline
+
     1. Choose a provider (required, there is no default):
          export ODYSSEUS_PROVIDER=gemini   # or openai / openrouter / anthropic
 
@@ -33,14 +37,15 @@ the model can only describe: judgment without hands.
 
 from __future__ import annotations
 
+import argparse
 import json
 import random
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from odysseus_v2 import create_provider, run_loop
-from odysseus_v2.providers import ConfigError
+from odysseus_v2.providers import Completion, ConfigError, Provider
 
 
 class RollDice:
@@ -63,25 +68,82 @@ class RollDice:
         return json.dumps([random.randint(1, 6) for _ in range(count)])
 
 
+class ScriptedProvider(Provider):
+    """A stand-in model for --offline: rolls, then answers from the roll.
+
+    Task 1: asks for roll_dice(count=3), then reads the tool result in
+    the conversation and reports the real total. Task 2: answers in text
+    with no tool call, as a model with only a dice tool should.
+    """
+
+    model = "scripted replies"
+
+    def __init__(self) -> None:
+        pass
+
+    def complete(self, system, messages, tools=(), *,
+                 allow_tool_calls=True) -> Completion:
+        task = messages[0]["text"]
+        last = messages[-1]
+        if "dice" not in task:
+            return _reply("I can only roll dice here, so I can't build a "
+                          "page. I can describe one: a hero with the shop's "
+                          "name, a menu, opening hours and a map.")
+        if last["role"] == "user":
+            return _reply("", {"id": "s1", "name": "roll_dice",
+                               "args": {"count": 3}})
+        values = json.loads(last["text"])
+        total = sum(values)
+        verdict = "beats 10" if total > 10 else "does not beat 10"
+        return _reply(f"I rolled {', '.join(map(str, values))}: the total "
+                      f"is {total}, which {verdict}.")
+
+    def _build_request(self, *args):   # never called: complete is replaced
+        raise NotImplementedError
+
+    def _parse_response(self, raw):
+        raise NotImplementedError
+
+
+def _reply(text: str, *calls: Mapping[str, Any]) -> Completion:
+    return Completion(text=text, tool_calls=[dict(c) for c in calls],
+                      usage={"input": 0, "output": 0})
+
+
 def print_event(kind: str, payload: Mapping[str, Any]) -> None:
     if kind == "assistant":
         if payload["text"]:
             print(f"assistant: {payload['text']}")
         usage = payload["usage"]
-        print(f"  [tokens in {usage['input']}, out {usage['output']}]")
+        if usage["input"] or usage["output"]:
+            print(f"  [tokens in {usage['input']}, out {usage['output']}]")
     elif kind == "tool_start":
         print(f"  -> {payload['name']}({payload['args']})")
     elif kind == "tool_end":
         print(f"  <- {payload['result']}")
+    elif kind == "truncated":
+        print(f"  !! reply cut off at the output-token limit "
+              f"({payload['output']} tokens): it is incomplete")
 
 
-def main() -> int:
-    try:
-        provider = create_provider()
-    except ConfigError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
-    print(f"provider: {provider.config.PROVIDER_NAME} - {provider.model}\n")
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--offline", action="store_true",
+                        help="use a scripted model instead of a real one")
+    args = parser.parse_args(argv)
+
+    if args.offline:
+        provider: Provider = ScriptedProvider()
+        print("provider: offline - scripted replies\n")
+    else:
+        try:
+            provider = create_provider()
+        except ConfigError as error:
+            print(f"error: {error}\n(or run with --offline)",
+                  file=sys.stderr)
+            return 1
+        print(f"provider: {provider.config.PROVIDER_NAME} - "
+              f"{provider.model}\n")
     tools = {"roll_dice": RollDice()}
     system = "You are a helpful agent. Use tools when they help."
 

@@ -58,6 +58,9 @@ def build_system_prompt(workdir: str | os.PathLike[str],
     memory = load_memory(workdir)
     if memory:
         sections.append(f"Project memory ({MEMORY_FILE}):\n{memory}")
+    else:   # say so, or the model goes looking for the file
+        sections.append(f"Project memory ({MEMORY_FILE}): none yet. "
+                        "Nothing has been saved for this project.")
     sections.extend(section for section in extra if section)
     return "\n\n".join(sections)
 
@@ -80,9 +83,12 @@ def memory_tools(workdir: str | os.PathLike[str]) -> list[Tool]:
     """Return the ``remember`` tool, writing to ``workdir``/AGENT_MEMORY.md."""
     path = os.path.join(os.path.realpath(workdir), MEMORY_FILE)
 
-    @tool("Save a short fact to project memory (AGENT_MEMORY.md). It is "
-          "loaded into every future session, so save only what will "
-          "still matter: conventions, decisions, how to run things.",
+    @tool("Save a short fact about this project to project memory "
+          "(AGENT_MEMORY.md). It is loaded into every future session, so "
+          "save only what will still matter: conventions, decisions, how "
+          "to build or test. Do not save facts about your own tools, "
+          "permissions or this session; those can change and the note "
+          "would go stale.",
           note="One fact, in one line")
     def remember(note: str) -> str:
         note = " ".join(note.split())        # one line, tidy spacing

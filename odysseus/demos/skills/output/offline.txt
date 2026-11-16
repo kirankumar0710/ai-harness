@@ -1,0 +1,41 @@
+# skills demo, recorded 2026-11-16, provider: offline - scripted replies, exit code 0
+
+$ python3 demos/skills/skills.py --offline
+provider: offline - scripted replies
+
+sandbox: <tmp>/odysseus-skills-9238x3e1
+skills: release-note, review-migration  (1517 chars on disk, 214 chars in every system prompt)
+
+=== task 1: release note ===
+user: We fixed a bug in calc.py: average() divided by len(values) - 1 instead of len(values), so every average came out too high. Add a release note for version 1.0.1, dated 2026-11-16.
+  -> use_skill(name='release-note')
+  <- ---  ...  - Never edit or reorder older entries.  (16 lines)
+  -> write_file(path='RELEASE_NOTES.md', content='# Release notes  ## 1.0.1 - 2026-11-16 ### Fixed - A...')
+  ? approver: write_file -> yes
+  <- Wrote 154 chars to RELEASE_NOTES.md
+assistant: Added the 1.0.1 entry to RELEASE_NOTES.md.
+
+=== task 2: question ===
+user: In one sentence: what does average() in calc.py return?
+  -> read_file(path='calc.py')
+  <- 1	def average(values):  ...  3	    return sum(values) / len(values)  (3 lines)
+assistant: It returns the arithmetic mean: the sum of the values divided by how many there are.
+
+=== task 3: migration review ===
+user: Review the migration migrations/0002_add_email.up.sql.
+  -> use_skill(name='review-migration')
+  <- ---  ...  the author fixes it.  (19 lines)
+  -> read_file(path='migrations/0002_add_email.up.sql')
+  <- 1	-- 0002: give users an email address and link orders to users  ...  3	ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES u  (3 lines)
+  -> list_files(pattern='migrations/*')
+  <- migrations/0002_add_email.up.sql
+assistant: 1. Reversible: FAIL - there is no 0002_add_email.down.sql
+2. Locking: FAIL - users.email is NOT NULL with no DEFAULT
+3. Indexes: FAIL - orders.user_id is a foreign key with no index
+4. Data: PASS - no rows are deleted or rewritten
+Verdict: REQUEST CHANGES
+
+=== summary ===
+task 1 (release note): skills loaded ['release-note'] - as expected; entry in the skill's format: yes
+task 2 (question): skills loaded none - as expected; no format to check
+task 3 (migration review): skills loaded ['review-migration'] - as expected; 4 checks + verdict: yes (4 check lines, verdict REQUEST CHANGES)

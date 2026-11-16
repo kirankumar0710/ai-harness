@@ -13,9 +13,14 @@ See context_walkthrough.html next to this file for the goal, a sample
 run and an analysis of its output.
 
 The throwaway project holds a chain of 8 files in data/. Each has a lot
-of filler text, one VALUE, and the name of the NEXT file, so the agent
-must read them one at a time. Four decoy files sit in the same folder
-with large values that must not be counted.
+of filler text, one VALUE, and the name of the NEXT file. Four decoy
+files sit in the same folder with large values that must not be
+counted.
+
+The agent gets only read_file and write_file. With grep it could pull
+every VALUE and NEXT line in one call (a real model did exactly that),
+and the conversation would never grow. Without it, the only way through
+is to read the files one at a time.
 
 The demo runs the same task twice, each in a fresh project:
 
@@ -41,9 +46,9 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from odysseus_v2 import create_provider, run_task
-from odysseus_v2.context import (CHARS_PER_TOKEN, SUMMARY_HEADER,
-                                 SUMMARY_PROMPT, estimate_tokens)
+from odysseus_v2 import core_tools, create_provider, run_task
+from odysseus_v2.context import (SUMMARY_HEADER, SUMMARY_PROMPT,
+                                 estimate_overhead, estimate_tokens)
 from odysseus_v2.providers import Completion, ConfigError, Provider
 
 CHAIN = [("start", 17), ("amber", 42), ("birch", 8), ("cedar", 23),
@@ -52,8 +57,14 @@ DECOYS = [("hazel", 100), ("ivory", 200), ("jade", 300), ("koala", 400)]
 EXPECTED_TOTAL = sum(value for _, value in CHAIN)          # 156
 
 FILLER_LINES = 40
-COMPACT_BUDGET = 2_500           # tokens, for the "with compaction" run
+# Tokens, for the "with compaction" run. Big enough for the fixed part
+# of every request (system prompt and tool schemas, about 870 tokens as
+# the vendor counts them), a summary and a couple of file reads after a
+# fold, so folds are occasional. At 2,500 they happened at almost every
+# step: the fold target (half the budget) was out of reach.
+COMPACT_BUDGET = 5_000
 NO_LIMIT = 10 ** 9
+TOOLS = {"read_file", "write_file"}   # no grep: the chain must be walked
 
 TASK = ("Start at data/start.txt. Each file in the chain has a VALUE and "
         "names the NEXT file to read. Follow the chain to the end, add up "
@@ -108,24 +119,33 @@ def approver(call: Mapping[str, Any], reason: str) -> bool:
 
 
 class Meter(Provider):
-    """Wraps a provider; records the size of every request it sends."""
+    """Wraps a provider; records the size of every request it sends.
+
+    Each size is kept twice: as estimated (four characters per token)
+    and as the vendor reported it. Offline, nothing is reported.
+    """
 
     def __init__(self, inner: Provider) -> None:
         self.inner = inner
-        self.agent_sizes: list[int] = []
+        self.agent_sizes: list[int] = []        # estimated
         self.summary_sizes: list[int] = []
+        self.agent_reported: list[int] = []     # reported by the vendor
+        self.summary_reported: list[int] = []
         self.input_tokens = 0
 
     def complete(self, system, messages, tools=(), *,
                  allow_tool_calls=True) -> Completion:
-        size = estimate_tokens(messages) + len(system) // CHARS_PER_TOKEN
-        if system == SUMMARY_PROMPT:
-            self.summary_sizes.append(size)
-        else:
-            self.agent_sizes.append(size)
+        size = estimate_tokens(messages) + estimate_overhead(system, tools)
         reply = self.inner.complete(system, messages, tools,
                                     allow_tool_calls=allow_tool_calls)
-        self.input_tokens += reply["usage"]["input"]
+        reported = reply["usage"]["input"]
+        if system == SUMMARY_PROMPT:
+            self.summary_sizes.append(size)
+            self.summary_reported.append(reported)
+        else:
+            self.agent_sizes.append(size)
+            self.agent_reported.append(reported)
+        self.input_tokens += reported
         return reply
 
     def _build_request(self, *args):   # never called: complete is replaced
@@ -157,7 +177,10 @@ def print_event(kind: str, payload: Mapping[str, Any]) -> None:
         print(f"  {'!!' if payload['is_error'] else '<-'} {shown}")
     elif kind == "compact":
         print(f"  ** compacted: {payload['summarised']} messages folded, "
-              f"~{payload['before']} -> ~{payload['after']} tokens")
+              f"~{payload['before']} -> ~{payload['after']} tokens "
+              f"(target {payload['target']})")
+    elif kind == "budget_warning":
+        print(f"  !! budget warning: {payload['reason']}")
 
 
 # --------------------------------------------------------------------------
@@ -258,8 +281,9 @@ def run(label: str, provider: Provider, budget: int) -> dict[str, Any]:
     messages: list = []
     print(f"user: {TASK}")
     try:
+        tools = [t for t in core_tools(project) if t.name in TOOLS]
         run_task(meter, project, TASK, mode="safe", approver=approver,
-                 budget_tokens=budget, on_event=print_event,
+                 budget_tokens=budget, on_event=print_event, tools=tools,
                  max_turns=25, messages=messages,
                  extra_prompt="Always reply in English.")
         total = read_total(project)
@@ -273,11 +297,16 @@ def run(label: str, provider: Provider, budget: int) -> dict[str, Any]:
         print("  " + summary.replace("\n", "\n  "))
     print("\nrequest sizes (estimated tokens), in order:")
     print("  " + " ".join(str(size) for size in meter.agent_sizes))
+    reported = meter.agent_reported + meter.summary_reported
+    if any(reported):
+        print("request sizes (reported by the vendor), in order:")
+        print("  " + " ".join(str(size) for size in meter.agent_reported))
     print()
     all_sizes = meter.agent_sizes + meter.summary_sizes
     return {"agent requests": len(meter.agent_sizes),
             "compactions": len(meter.summary_sizes),
-            "largest request": max(all_sizes),
+            "largest request (estimate)": max(all_sizes),
+            "largest request (reported)": max(reported) or "-",
             "messages at the end": len(messages),
             "tokens sent (estimate)": sum(all_sizes),
             "tokens sent (reported)": meter.input_tokens or "-",

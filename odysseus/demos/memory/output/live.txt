@@ -1,0 +1,96 @@
+# memory demo, recorded 2026-11-16, provider: anthropic - claude-sonnet-5-5, exit code 0
+
+$ python3 demos/memory/memory.py
+provider: anthropic - claude-sonnet-5-5
+
+sandbox: <tmp>/odysseus-memory-lmvs2ovt
+
+=== run 1: without memory ===
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project, unless it is already in project memory.
+  [tokens in 1680, out 73]
+  -> list_files()
+  <- calc.py  ...  checks/check_calc.py  (3 lines)
+  -> read_file(path='calc.py')
+  <- 1	def average(values):  ...  3	    return sum(values) / (len(values) - 1)  (3 lines)
+  [tokens in 1888, out 156]
+  -> read_file(path='checks/check_calc.py')
+  <- 1	import unittest  ...  8	        self.assertEqual(average([2, 4, 6]), 4)  (8 lines)
+  -> edit_file(path='calc.py', old='(len(values) - 1)', new='len(values)')
+  ? approver: edit_file -> yes
+  <- Edited calc.py
+  [tokens in 2189, out 82]
+  -> bash(command='python -m unittest discover -s checks -t . -p "check_*.py" -v 2>&1 | tail -8')
+  ? approver: bash -> yes
+  <- raise ImportError("these checks only run with CALC_CHECKS=1 set")  ...  FAILED (errors=1)  (5 lines)
+  [tokens in 2366, out 105]
+  -> bash(command='cat checks/__init__.py; CALC_CHECKS=1 python -m unittest discover -s checks -t . -p "check_*.py" -v 2>&1 | tail -8')
+  ? approver: bash -> no
+  !! BLOCKED: not approved: only 'python3 -m unittest ...' commands are approved; they may start with VAR
+  [tokens in 2545, out 147]
+  -> read_file(path='checks/__init__.py')
+  <- 1	import os  ...  4	    raise ImportError("these checks only run with CALC_CHE  (4 lines)
+  -> bash(command='CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v 2>&1 | tail -8')
+  ? approver: bash -> yes
+  <- test_average (checks.check_calc.AverageCheck.test_average) ... ok  ...  OK  (4 lines)
+  [tokens in 2868, out 111]
+  -> remember(note='Run checks with: CALC_CHECKS=1 python3 -m unittest discover -s che...')
+  ? approver: remember -> yes
+  <- Remembered in AGENT_MEMORY.md
+assistant: I fixed the bug in `calc.py`, and the check now passes.
+
+`average` divided by `len(values) - 1` instead of `len(values)`. I changed it to divide by `len(values)`.
+
+The checks only run when `CALC_CHECKS=1` is set, otherwise `checks/__init__.py` raises an ImportError. With it set, I ran `CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v`. It ran 1 test, which passed.
+
+I saved that command, and the need for `CALC_CHECKS=1`, to project memory.
+  [tokens in 3001, out 202]
+
+memory section the model was given:
+  Project memory (AGENT_MEMORY.md): none yet. Nothing has been saved for this project.
+
+AGENT_MEMORY.md after this run:
+  - Run checks with: CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v (CALC_CHECKS=1 is required or import fails).
+
+=== run 2: with memory ===
+user: The checks for this project fail. Fix the bug in calc.py and confirm the checks pass. Before you finish, use the remember tool to save anything a future session would need to know about working in this project, unless it is already in project memory.
+  [tokens in 1732, out 111]
+  -> bash(command='cat calc.py; ls; ls checks; CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v 2>&1 | tail -30')
+  ? approver: bash -> no
+  !! BLOCKED: not approved: only 'python3 -m unittest ...' commands are approved; they may start with VAR
+  [tokens in 1917, out 143]
+  -> read_file(path='calc.py')
+  <- 1	def average(values):  ...  3	    return sum(values) / (len(values) - 1)  (3 lines)
+  -> bash(command='CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v 2>&1 | tail -30')
+  ? approver: bash -> yes
+  <- test_average (checks.check_calc.AverageCheck.test_average) ... FAIL  ...  FAILED (failures=1)  (11 lines)
+  [tokens in 2412, out 104]
+  -> edit_file(path='calc.py', old='(len(values) - 1)', new='len(values)')
+  ? approver: edit_file -> yes
+  <- Edited calc.py
+  [tokens in 2528, out 96]
+  -> bash(command='CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v 2>&1 | tail -30')
+  ? approver: bash -> yes
+  <- test_average (checks.check_calc.AverageCheck.test_average) ... ok  ...  OK  (4 lines)
+assistant: I fixed the bug in `calc.py`: `average` divided by `len(values) - 1`, and it now divides by `len(values)`. I re-ran the checks and the one test, `test_average`, passes.
+
+I didn't call `remember`. The only thing a future session needs is the command for running the checks, and project memory already has it, including the `CALC_CHECKS=1` requirement.
+  [tokens in 2686, out 194]
+
+memory section the model was given:
+  Project memory (AGENT_MEMORY.md):
+  - Run checks with: CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v (CALC_CHECKS=1 is required or import fails).
+
+AGENT_MEMORY.md after this run:
+  - Run checks with: CALC_CHECKS=1 python3 -m unittest discover -s checks -t . -p "check_*.py" -v (CALC_CHECKS=1 is required or import fails).
+
+=== before / after ===
+                            without memory   with memory
+model calls                              7             5
+tool calls                               9             5
+wasted calls                             2             1
+tokens sent (estimate)               10251          6833
+tokens sent (reported)               16537         11275
+checks pass                            yes           yes
+  wasted (without memory): bash: ImportError: these checks only run with CALC_CHECKS=1 set
+  wasted (without memory): bash: BLOCKED: not approved: only 'python3 -m unittest ...' commands are approved; the
+  wasted (with memory): bash: BLOCKED: not approved: only 'python3 -m unittest ...' commands are approved; the

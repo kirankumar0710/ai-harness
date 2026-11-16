@@ -16,6 +16,8 @@ Design rules:
   sometimes send ``"120"`` where ``120`` was asked for.
 * Every file path is jailed to the working directory by ``resolve()``.
   Behaviour (what may run at all) is policed in ``security.py``.
+* ``bash`` gets a minimal environment: secrets in the harness's own
+  environment never reach a shell command, and so never the model.
 * Tools return text. Expected failures are returned as ``ERROR: ...``
   strings the model can act on; anything unexpected is raised and the
   loop turns it into an error result.
@@ -53,6 +55,20 @@ MAX_LIST_ENTRIES = 500
 MAX_GREP_HITS = 200
 MAX_GREP_LINE_CHARS = 200
 DEFAULT_BASH_TIMEOUT = 120
+
+# The only environment variables bash commands see. Everything else -
+# API keys, tokens, cloud credentials - stays out of reach of the model.
+SHELL_ENV_VARS = ("PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TERM",
+                  "TMPDIR", "USER", "LOGNAME", "SHELL", "VIRTUAL_ENV")
+
+
+def shell_environment(extra: Mapping[str, str] | None = None
+                      ) -> dict[str, str]:
+    """The environment for bash: SHELL_ENV_VARS from ours, plus ``extra``."""
+    env = {name: os.environ[name] for name in SHELL_ENV_VARS
+           if name in os.environ}
+    env.update(extra or {})
+    return env
 
 
 @dataclass(frozen=True)
@@ -198,9 +214,16 @@ def _glob_match(rel: str, name: str, pattern: str) -> bool:
 # --------------------------------------------------------------------------
 
 
-def core_tools(workdir: str | os.PathLike[str]) -> list[Tool]:
-    """Return the six core tools, jailed to ``workdir``."""
+def core_tools(workdir: str | os.PathLike[str],
+               shell_env: Mapping[str, str] | None = None) -> list[Tool]:
+    """Return the six core tools, jailed to ``workdir``.
+
+    ``bash`` runs with a minimal environment (``SHELL_ENV_VARS``), so a
+    command such as ``printenv`` cannot hand the model the harness's API
+    keys. ``shell_env`` adds variables a project's commands need.
+    """
     jail_dir = os.path.realpath(workdir)
+    env = shell_environment(shell_env)
 
     def resolve(path: str) -> str:
         """Map a relative path into ``jail_dir``; refuse anything outside.
@@ -271,8 +294,8 @@ def core_tools(workdir: str | os.PathLike[str]) -> list[Tool]:
     def bash(command: str, timeout: int = DEFAULT_BASH_TIMEOUT) -> str:
         try:
             done = subprocess.run(
-                command, shell=True, cwd=jail_dir, capture_output=True,
-                text=True, timeout=timeout)
+                command, shell=True, cwd=jail_dir, env=env,
+                capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
             return f"ERROR: timed out after {timeout}s"
         output = (done.stdout + done.stderr).strip()

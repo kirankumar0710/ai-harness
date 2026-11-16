@@ -28,7 +28,8 @@ from typing import Literal, get_args
 from .providers import ToolCall
 
 Mode = Literal["read-only", "safe", "yolo"]
-Approver = Callable[[ToolCall, str], bool]
+# True approves; False refuses; a string refuses and says why.
+Approver = Callable[[ToolCall, str], "bool | str"]
 
 MODES: tuple[str, ...] = get_args(Mode)
 
@@ -63,13 +64,19 @@ def approve_all(call: ToolCall, reason: str) -> bool:
 
 
 def console_approver(call: ToolCall, reason: str) -> bool:
-    """Ask on the terminal: ``y`` approves, anything else refuses."""
+    """Ask on the terminal: ``y`` approves, anything else refuses.
+
+    The decision is printed after the answer, so a captured transcript
+    (which never contains what was typed) still shows it.
+    """
     args = ", ".join(f"{k}={v!r}" for k, v in call["args"].items())
     try:
         answer = input(f"\n[{reason}] {call['name']}({args})  allow? [y/N] ")
     except EOFError:
-        return False
-    return answer.strip().lower() in {"y", "yes"}
+        answer = ""
+    approved = answer.strip().lower() in {"y", "yes"}
+    print(f"  -> {'approved' if approved else 'refused'} by the user")
+    return approved
 
 
 class Policy:
@@ -81,9 +88,16 @@ class Policy:
       * ``"safe"`` - read tools run; anything else asks the approver.
       * ``"yolo"`` - everything runs that the deny rules allow.
 
-    ``approver(call, reason) -> bool`` is consulted in ``"safe"`` mode.
+    ``approver(call, reason)`` is consulted in ``"safe"`` mode. It
+    returns ``True`` to approve, ``False`` to refuse, or a string to
+    refuse *and say why*: the string reaches the model, which can then
+    try something that would be approved instead of giving up.
     It defaults to ``deny_all`` so an unattended run never acts by
     accident; the CLI wires it to ``console_approver``.
+
+    ``available`` names the tools the model has in this run. When given,
+    a read-only refusal lists only the read tools among them, so it
+    never offers a tool the model cannot call.
     """
 
     def __init__(
@@ -94,6 +108,7 @@ class Policy:
         read_tools: Iterable[str] = READ_TOOLS,
         shell_tools: Iterable[str] = SHELL_TOOLS,
         deny_patterns: Iterable[str] = DENY_PATTERNS,
+        available: Iterable[str] | None = None,
     ) -> None:
         if mode not in MODES:
             raise ValueError(
@@ -103,6 +118,7 @@ class Policy:
         self.read_tools = frozenset(read_tools)
         self.shell_tools = frozenset(shell_tools)
         self._deny = [re.compile(p) for p in deny_patterns]
+        self.available = None if available is None else frozenset(available)
 
     def check(self, call: ToolCall) -> str | None:
         """Return a block reason, or ``None`` to allow the call."""
@@ -113,15 +129,24 @@ class Policy:
         if call["name"] in self.read_tools or self.mode == "yolo":
             return None
         if self.mode == "read-only":
+            allowed = self.read_tools
+            if self.available is not None:
+                allowed = allowed & self.available
+            if not allowed:
+                return "policy is read-only; no available tool is allowed"
             return ("policy is read-only; only "
-                    f"{', '.join(sorted(self.read_tools))} are allowed")
+                    f"{', '.join(sorted(allowed))} are allowed")
 
         # mode == "safe": side effects need approval.
         try:
-            approved = self.approver(call, "side-effecting tool call")
+            answer = self.approver(call, "side-effecting tool call")
         except Exception as error:   # a broken prompt must not allow
             return f"approval failed: {type(error).__name__}: {error}"
-        return None if approved else "not approved by user"
+        if isinstance(answer, str):  # a refusal with a reason
+            reason = answer.strip()
+            return f"not approved: {reason}" if reason else \
+                "not approved by user"
+        return None if answer else "not approved by user"
 
     def _denied_by(self, call: ToolCall) -> str | None:
         """Return the first deny pattern a shell command matches."""

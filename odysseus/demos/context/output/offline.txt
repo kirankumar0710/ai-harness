@@ -1,0 +1,78 @@
+# context demo, recorded 2026-11-16, provider: offline - scripted replies, exit code 0
+
+$ python3 demos/context/context.py --offline
+provider: offline - scripted replies
+
+=== run 1: without compaction ===
+user: Start at data/start.txt. Each file in the chain has a VALUE and names the NEXT file to read. Follow the chain to the end, add up the VALUEs of the files in the chain only, and write the total to TOTAL.txt as a single number.
+  -> read_file(path='data/start.txt')
+  <- 43 lines; VALUE: 17; NEXT: data/amber.txt
+  -> read_file(path='data/amber.txt')
+  <- 43 lines; VALUE: 42; NEXT: data/birch.txt
+  -> read_file(path='data/birch.txt')
+  <- 43 lines; VALUE: 8; NEXT: data/cedar.txt
+  -> read_file(path='data/cedar.txt')
+  <- 43 lines; VALUE: 23; NEXT: data/delta.txt
+  -> read_file(path='data/delta.txt')
+  <- 43 lines; VALUE: 15; NEXT: data/ember.txt
+  -> read_file(path='data/ember.txt')
+  <- 43 lines; VALUE: 4; NEXT: data/fjord.txt
+  -> read_file(path='data/fjord.txt')
+  <- 43 lines; VALUE: 16; NEXT: data/grove.txt
+  -> read_file(path='data/grove.txt')
+  <- 43 lines; VALUE: 31; NEXT: none
+assistant: Total of the VALUEs I can see: 156.
+  -> write_file(path='TOTAL.txt', content='156\n')
+  ? approver: write_file -> yes
+  <- Wrote 4 chars to TOTAL.txt
+assistant: Done: the total is in TOTAL.txt.
+
+request sizes (estimated tokens), in order:
+  409 1054 1699 2344 2989 3635 4280 4925 5577 5649
+
+=== run 2: with compaction ===
+user: Start at data/start.txt. Each file in the chain has a VALUE and names the NEXT file to read. Follow the chain to the end, add up the VALUEs of the files in the chain only, and write the total to TOTAL.txt as a single number.
+  -> read_file(path='data/start.txt')
+  <- 43 lines; VALUE: 17; NEXT: data/amber.txt
+  -> read_file(path='data/amber.txt')
+  <- 43 lines; VALUE: 42; NEXT: data/birch.txt
+  -> read_file(path='data/birch.txt')
+  <- 43 lines; VALUE: 8; NEXT: data/cedar.txt
+  -> read_file(path='data/cedar.txt')
+  <- 43 lines; VALUE: 23; NEXT: data/delta.txt
+  -> read_file(path='data/delta.txt')
+  <- 43 lines; VALUE: 15; NEXT: data/ember.txt
+  -> read_file(path='data/ember.txt')
+  <- 43 lines; VALUE: 4; NEXT: data/fjord.txt
+  -> read_file(path='data/fjord.txt')
+  <- 43 lines; VALUE: 16; NEXT: data/grove.txt
+  -> read_file(path='data/grove.txt')
+  <- 43 lines; VALUE: 31; NEXT: none
+  ** compacted: 11 messages folded, ~5577 -> ~2361 tokens (target 2500)
+assistant: Total of the VALUEs I can see: 156.
+  -> write_file(path='TOTAL.txt', content='156\n')
+  ? approver: write_file -> yes
+  <- Wrote 4 chars to TOTAL.txt
+assistant: Done: the total is in TOTAL.txt.
+
+the summary the conversation now starts with:
+  [Conversation so far, compacted]
+  Task: follow the chain from data/start.txt, sum the VALUEs of chain files only, write TOTAL.txt.
+  Files read so far: data/start.txt=17, data/amber.txt=42, data/birch.txt=8, data/cedar.txt=23, data/delta.txt=15
+  Running total: 105
+
+request sizes (estimated tokens), in order:
+  409 1054 1699 2344 2989 3635 4280 4925 2361 2433
+
+=== before / after ===
+                            without compaction   with compaction
+agent requests                              10                10
+compactions                                  0                 1
+largest request (estimate)                5649              4925
+largest request (reported)                   -                 -
+messages at the end                         20                10
+tokens sent (estimate)                   32561             28984
+tokens sent (reported)                       -                 -
+TOTAL.txt                                  156               156
+correct                                    yes               yes
+(compaction budget: 5000 tokens; expected total: 156)

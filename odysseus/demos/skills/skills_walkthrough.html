@@ -278,7 +278,7 @@ ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id);</code></pre>
 <pre><code>$ python3 demos/skills/skills.py --offline
 provider: offline - scripted replies
 
-sandbox: /var/folders/.../T/odysseus-skills-xxxx
+sandbox: &lt;tmp&gt;/odysseus-skills-9238x3e1
 skills: release-note, review-migration  (1517 chars on disk, 214 chars in every system prompt)
 
 === task 1: release note ===
@@ -314,7 +314,61 @@ Verdict: REQUEST CHANGES
 task 1 (release note): skills loaded ['release-note'] - as expected; entry in the skill's format: yes
 task 2 (question): skills loaded none - as expected; no format to check
 task 3 (migration review): skills loaded ['review-migration'] - as expected; 4 checks + verdict: yes (4 check lines, verdict REQUEST CHANGES)</code></pre>
-  <p class="dim">A live run is still to come; its output and analysis will be added here.</p>
+  <p class="dim">Full output: <a href="output/offline.txt"><code>output/offline.txt</code></a>.</p>
+  <h3>Live run: <code>anthropic</code> / <code>claude-sonnet-5-5</code></h3>
+  <p>The shell prompt is shown as <code>$</code> and the path is shortened.</p>
+<pre><code>$ python3 demos/skills/skills.py
+provider: anthropic - claude-sonnet-5-5
+
+sandbox: &lt;tmp&gt;/odysseus-skills-txau845e
+skills: release-note, review-migration  (1517 chars on disk, 214 chars in every system prompt)
+
+=== task 1: release note ===
+user: We fixed a bug in calc.py: average() divided by len(values) - 1 instead of len(values), so every average came out too high. Add a release note for version 1.0.1, dated 2026-11-16.
+  [tokens in 1696, out 73]
+  -&gt; use_skill(name='release-note')
+  &lt;- ---  ...  - Never edit or reorder older entries.  (16 lines)
+  -&gt; list_files()
+  &lt;- RELEASE_NOTES.md  ...  skills/review-migration/SKILL.md  (5 lines)
+  [tokens in 2130, out 58]
+  -&gt; read_file(path='RELEASE_NOTES.md')
+  &lt;- 1	# Release notes
+  [tokens in 2201, out 151]
+  -&gt; write_file(path='RELEASE_NOTES.md', content='# Release notes  ## 1.0.1 - 2026-11-16 ### Fixed - F...')
+  ? approver: write_file -&gt; yes
+  &lt;- Wrote 190 chars to RELEASE_NOTES.md
+assistant: I added the 1.0.1 entry, dated 2026-11-16, to `RELEASE_NOTES.md` directly under the "# Release notes" heading. I didn't read the file back after writing it.
+  [... 8 more lines of the answer: see the full output]
+  [tokens in 2379, out 262]
+
+=== task 2: question ===
+user: In one sentence: what does average() in calc.py return?
+  [tokens in 1648, out 121]
+  -&gt; grep(regex='def average', pattern='calc.py')
+  &lt;- calc.py:1: def average(values):
+  -&gt; read_file(path='calc.py')
+  &lt;- 1	def average(values):  ...  3	    return sum(values) / len(values)  (3 lines)
+assistant: `average()` returns the arithmetic mean of a non-empty list of numbers, computed as `sum(values) / len(values)`. It will raise a `ZeroDivisionError` if you pass it an empty list.
+  [tokens in 1887, out 70]
+
+=== task 3: migration review ===
+user: Review the migration migrations/0002_add_email.up.sql.
+  [tokens in 1652, out 159]
+  -&gt; use_skill(name='review-migration')
+  &lt;- ---  ...  the author fixes it.  (19 lines)
+  -&gt; read_file(path='migrations/0002_add_email.up.sql')
+  &lt;- 1	-- 0002: give users an email address and link orders to users  ...  3	ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES u  (3 lines)
+  -&gt; list_files(pattern='migrations/*')
+  &lt;- migrations/0002_add_email.up.sql
+assistant: 1. Reversible: FAIL - there is no `migrations/0002_add_email.down.sql`. Only the up migration exists.
+  [... 4 more lines of the answer: see the full output]
+  [tokens in 2297, out 195]
+
+=== summary ===
+task 1 (release note): skills loaded ['release-note'] - as expected; entry in the skill's format: yes
+task 2 (question): skills loaded none - as expected; no format to check
+task 3 (migration review): skills loaded ['review-migration'] - as expected; 4 checks + verdict: yes (4 check lines, verdict REQUEST CHANGES)</code></pre>
+  <p class="dim">Full output: <a href="output/live.txt"><code>output/live.txt</code></a>. Long model answers are cut to their first line above.</p>
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="analysis">Analysis</h2>
@@ -333,18 +387,41 @@ task 3 (migration review): skills loaded ['review-migration'] - as expected; 4 c
         wrote its review.</li>
   </ul>
 
-  <h3>What the live run will test</h3>
-  <p>Offline, the script decides which skill to load. Live, the model decides, from the
-     descriptions alone. Things to look for:</p>
+  <h3>Live run: every check passes</h3>
+  <p><span class="ok">The model chose the right skill every time, from the one-line
+     descriptions alone.</span> The tasks never mention skills.</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Task</th><th>Skills loaded</th><th>Followed the skill?</th></tr>
+      <tr><td>1. release note</td><td><code>release-note</code></td>
+          <td><span class="ok">Yes.</span> Heading, <code>### Fixed</code>, the file in brackets
+              and the <code>Upgrade:</code> line, exactly as the skill says.</td></tr>
+      <tr><td>2. question</td><td>none</td>
+          <td>Nothing to follow: it answered from <code>calc.py</code>, and neither skill's text
+              entered the conversation.</td></tr>
+      <tr><td>3. migration review</td><td><code>review-migration</code></td>
+          <td><span class="ok">Yes.</span> All four checks in order, the right three failures
+              with correct reasons, and <code>Verdict: REQUEST CHANGES</code>.</td></tr>
+    </table>
+  </div>
   <ul>
-    <li><strong>Does it load the skill without being told?</strong> The tasks never mention
-        skills. A model that writes the release note from general knowledge will get the
-        format wrong, and the check will say <code>no</code>.</li>
-    <li><strong>Does it load only the relevant skill?</strong> Loading both, or loading one
-        for the question, costs context for nothing.</li>
-    <li><strong>Does it follow the instructions exactly?</strong> The bracketed file name,
-        the <code>Upgrade:</code> line, and the four checks in order are the details most
-        likely to drift.</li>
+    <li><strong>It loaded the skill first.</strong> In tasks 1 and 3, <code>use_skill</code> was
+        the model's first call, before it had read any project file. The description was
+        enough to decide.</li>
+    <li><strong>It obeyed the skill's rules, not just its format.</strong> Task 1 read
+        <code>RELEASE_NOTES.md</code> before writing, as “never edit or reorder older entries”
+        requires. Task 3 checked for a <code>.down.sql</code> with <code>list_files</code>
+        rather than assuming, and did not edit the migration: “the author fixes it”.</li>
+    <li><strong>It said what it had assumed.</strong> The skill requires an
+        <code>Upgrade:</code> line; the model chose “no action needed”, gave its reason (a
+        calculation fix needs nothing from users) and added: “I didn't open
+        <code>calc.py</code>, so the note rests on your description of the bug.” A skill can
+        make a model fill in a field; it cannot make the content right, so this kind of note
+        is worth having.</li>
+    <li><strong>Context cost.</strong> Task 2's first request was 1,648 input tokens; task 1's
+        first request, before loading the skill, was 1,696. The difference is the task text.
+        The skills cost nothing extra until loaded, then a few hundred tokens for the one
+        task that needed them.</li>
   </ul>
 
   <h3>Something to watch</h3>
@@ -362,7 +439,8 @@ task 3 (migration review): skills loaded ['review-migration'] - as expected; 4 c
   <!-- ------------------------------------------------------------------ -->
   <h2 id="next">Next steps</h2>
   <ul>
-    <li><strong>Run it live</strong> and add the output and analysis here.</li>
+    <li><strong>Run with Gemini and OpenAI</strong>: this run covered only the Anthropic
+        adapter.</li>
     <li><strong>Add a third, unrelated skill</strong> to check the model still picks only
         the relevant one as the catalog grows.</li>
     <li><strong>Try a vague description</strong> on one skill to see selection fail, then
