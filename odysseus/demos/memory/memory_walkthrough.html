@@ -145,8 +145,6 @@ OK</code></pre>
      <code>checks/__init__.py</code>, which models rarely do. That makes it a fact worth
      remembering: the run that discovers it pays for a failed run; the next one should
      not.</p>
-  <p class="dim">An earlier version hid only the file names. A live model worked those out by
-     reading one file, so memory had little to save (see the live run below).</p>
 
   <h3>The two runs</h3>
   <p>Both runs send the same task, through <code>run_task()</code> in safe mode:</p>
@@ -394,21 +392,16 @@ checks pass                            yes           yes
         note.</li>
     <li><strong>The note is about the project only:</strong> “Run checks with:
         CALC_CHECKS=1 python3 -m unittest discover ... (CALC_CHECKS=1 is required or import
-        fails).” The previous run's note also recorded the approver's rules (“bash tool only
-        approves 'python3 -m unittest ...' commands ...”), facts about this harness that would
-        go stale if the approver changed. The clearer <code>remember</code> description,
-        “not about your own tools, permissions or this session”, kept them out.</li>
+        fails).” Nothing about the harness itself: the <code>remember</code> tool's
+        description says to save facts about the project, “not about your own tools,
+        permissions or this session”, because those can change and the note would go
+        stale.</li>
     <li><strong>Run 2 started from the note</strong>: no listing, no failed import. Its one
         wasted call was a chain, <code>cat calc.py; ls; ls checks; CALC_CHECKS=1 ...</code>,
         refused with a reason; it then ran the parts separately.</li>
     <li><strong>No duplicate note.</strong> Run 2: “project memory already has it, including
         the <code>CALC_CHECKS=1</code> requirement.”</li>
   </ul>
-  <p><strong>A trade-off this shows.</strong> In the previous run, the note about the
-     approver's rules saved run 2 from that chained command: it had no wasted calls and
-     saved 46%. Keeping such notes out cost one refused call here. It is still the right
-     trade: a wrong note misleads every later session, while a refused call costs one turn
-     and says what to do instead.</p>
 
   <h3>Offline run</h3>
   <p>The scripted run shows the same mechanism with fixed steps: run 1 lists the files, runs
@@ -428,49 +421,6 @@ checks pass                            yes           yes
       <tr><td>checks pass</td><td class="num">yes</td><td class="num">yes</td></tr>
     </table>
   </div>
-
-  <h3>First live run: the table went the wrong way</h3>
-  <div class="table-wrap">
-    <table>
-      <tr><th></th><th class="num">without memory</th><th class="num">with memory</th></tr>
-      <tr><td>model calls</td><td class="num">5</td><td class="num">6</td></tr>
-      <tr><td>tool calls</td><td class="num">7</td><td class="num">7</td></tr>
-      <tr><td>wasted calls</td><td class="num">1</td><td class="num">2</td></tr>
-      <tr><td>tokens sent (reported)</td><td class="num">10,345</td><td class="num">13,038</td></tr>
-      <tr><td>fix verified by the agent</td><td class="num">yes</td><td class="num"><span class="bad">no</span></td></tr>
-    </table>
-  </div>
-  <p><strong>Memory itself worked.</strong> Run 2's <em>first</em> call was the correct check
-     command, straight from <code>AGENT_MEMORY.md</code>: no listing, no reading the check file,
-     no guessing. That is the saving the demo was built to show. The numbers hide it for
-     three reasons, all in the demo's design, not in <code>memory.py</code>:</p>
-  <ol>
-    <li><strong>The approver blocked the remembered command.</strong> Run 2 ran it with
-        <code>2&gt;&amp;1</code> appended, to see errors too. The demo's approver refuses any
-        shell operator, so both attempts were blocked, and the agent finished without running
-        the checks. Every extra call and token in run 2 comes from working around that.</li>
-    <li><strong>The hidden fact was not hidden enough.</strong> Run 1 read
-        <code>checks/check_calc.py</code>, worked out the discover command and got it right first
-        time. It never ran plain <code>unittest</code>, so there was little discovery for memory
-        to save.</li>
-    <li><strong>Run 2 saved a bad note.</strong> The task asks every run to save what a future
-        session needs, so run 2 added:
-        <em>“In one session, the bash tool was blocked (‘not approved by user’), so the checks
-        could not be run.”</em> That is a fact about one session's approver, not about the
-        project, and it would now be in every future system prompt. This is the risk under
-        “Something to watch” below, happening for real.</li>
-  </ol>
-  <p><strong>Fixed since:</strong> the approver now accepts a test command ending in
-     <code>2&gt;&amp;1</code> or <code>| tail -N</code>, and the task asks for notes only when
-     they are not already in memory. Reason 2 (the fact was easy to work out) is unchanged:
-     memory still saves the listing,
-     reading and guessing, as run 2 showed. The live run above shows the corrected
-     table.</p>
-  <p><strong>Token counts:</strong> the estimate (2,842) is far below what the vendor reported
-     (10,345) because it counts only the messages and the system prompt. Every request also
-     carries the eight tool schemas, over 1,000 tokens each time. See the
-     <a href="../context/context_walkthrough.html#live">context walkthrough</a>, where the same gap
-     matters more.</p>
 
   <h3>Something to watch</h3>
   <div class="callout">

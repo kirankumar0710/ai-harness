@@ -84,7 +84,6 @@
     <a href="#run">How to run</a>
     <a href="#output">Sample output</a>
     <a href="#analysis">Analysis</a>
-    <a href="#bug">Found by this demo</a>
     <a href="#next">Next steps</a>
   </nav>
 
@@ -120,10 +119,9 @@ VALUE: 17
 NEXT: data/amber.txt</code></pre>
   <p>Because each file names the next, and the agent gets only <code>read_file</code> and
      <code>write_file</code>, it must read them one at a time: eight turns, each adding about
-     650 tokens to the conversation. (With <code>grep</code>, a real model pulled every VALUE
-     and NEXT line in one call, and no compaction happened; see the
-     <a href="#live">first live run</a>. The tools are limited with
-     <code>run_task(..., tools=...)</code>.) Four <strong>decoy</strong> files sit in
+     650 tokens to the conversation. (With <code>grep</code> the model could pull every
+     VALUE and NEXT line in one call, and the conversation would never grow, so the task is
+     limited to these two tools with <code>run_task(..., tools=...)</code>.) Four <strong>decoy</strong> files sit in
      the same folder with values 100–400 that must not be counted. An agent that loses track
      of which files were in the chain gets an obviously wrong total. The right total is
      <strong>156</strong>.</p>
@@ -437,9 +435,7 @@ correct                                    yes               yes
   <ul>
     <li><span class="ok">Two folds, each reaching its target.</span> After each fold the
         request was about 2,100–2,200 (estimated) against a target of half the budget, 2,500,
-        so there was room to work between folds and no <code>budget_warning</code>. At a
-        budget of 2,500 the same task folded at 8 of 10 requests (see the earlier run
-        below).</li>
+        so there was room to work between folds and no <code>budget_warning</code>.</li>
     <li><strong>31% fewer tokens in total</strong> (51,746 against 35,664 reported), including
         the two summary calls. The largest request was 4,764 instead of 8,867. On a longer
         task the gap keeps widening: without compaction the size grows with every step; with
@@ -472,120 +468,6 @@ correct                                    yes               yes
       <tr><td>correct</td><td class="num">yes</td><td class="num">yes</td></tr>
     </table>
   </div>
-
-  <h3 id="live-now">Earlier live run at a budget of 2,500: within budget every time, but folding at almost every step</h3>
-  <div class="table-wrap">
-    <table>
-      <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
-      <tr><td>agent requests</td><td class="num">10</td><td class="num">10</td></tr>
-      <tr><td>compactions</td><td class="num">0</td><td class="num">8</td></tr>
-      <tr><td>largest request (reported)</td><td class="num">8,891</td><td class="num">2,407</td></tr>
-      <tr><td>largest request (estimate)</td><td class="num">5,829</td><td class="num">1,365</td></tr>
-      <tr><td>messages at the end</td><td class="num">21</td><td class="num">5</td></tr>
-      <tr><td>tokens sent (reported, incl. summaries)</td><td class="num">51,761</td><td class="num">31,390</td></tr>
-      <tr><td>TOTAL.txt</td><td class="num">156</td><td class="num">156</td></tr>
-    </table>
-  </div>
-  <ul>
-    <li><span class="ok">The budget held as a cap.</span> Every request the vendor counted
-        was at most 2,407 tokens against the 2,500 budget; without compaction they climbed
-        to 8,891. 39% fewer tokens in total, including the summary calls, and the answer is
-        still 156.</li>
-    <li><strong>The summary kept every value.</strong> The last one lists all eight files
-        with their VALUE and the final total, and the model's interim answer, “Total: 125 +
-        31 = 156”, adds the summary's total for the first seven files to the one it could
-        still see.</li>
-  </ul>
-  <p><span class="bad">Folding to half the budget had no effect here: still 8 folds in 10
-     requests.</span> The demo now prints reported sizes next to the estimates, and they show
-     why:</p>
-  <div class="table-wrap">
-    <table>
-      <tr><th>Part of each request after a fold</th><th class="num">reported tokens</th></tr>
-      <tr><td>Fixed part: system prompt and the two tool schemas (first request)</td>
-          <td class="num">about 870</td></tr>
-      <tr><td>The newest file read, which is always kept</td><td class="num">about 970</td></tr>
-      <tr><td>The summary</td><td class="num">a few hundred</td></tr>
-      <tr><td><strong>Smallest possible request after folding</strong></td>
-          <td class="num"><strong>about 2,200</strong></td></tr>
-    </table>
-  </div>
-  <ul>
-    <li>Half the budget is 1,250. The fixed part and one file read already pass that, so the
-        target cannot be reached: the compactor keeps the minimum, lands at about 2,200, and
-        the next read pushes it over 2,500 again.</li>
-    <li><strong>The offline run hid this.</strong> Offline, the fixed part is only estimated:
-        409 tokens, against 870 reported. The vendor counts tool definitions more heavily
-        than four characters per token suggests. Live, the compactor corrects its estimate
-        from the reported sizes, but no correction makes 2,200 fit in 1,250.</li>
-    <li><strong>The compactor does not say so.</strong> It folds every step without warning
-        that its target is out of reach, which is a real gap: with a realistic budget it
-        would not arise, but nothing tells you when the budget is too small for the
-        task.</li>
-  </ul>
-  <p><strong>Both fixed since:</strong> the demo's budget is now 5,000, which leaves room for
-     the fixed part, a summary and a couple of reads after a fold, and the compactor emits a
-     <code>budget_warning</code> the first time a fold cannot reach its target. At 2,500 this
-     run would have warned at its first fold. The <a href="#live-5000">live run at 5,000</a>
-     folds twice, each time reaching its target.</p>
-
-  <h3 id="live">First live run: no compaction happened</h3>
-  <p><span class="bad">The live run never tested compaction.</span> The model did not follow the
-     chain. After reading <code>start.txt</code> it searched every file for
-     <code>VALUE|NEXT</code> in one <code>grep</code> call, which returned all twelve files'
-     VALUE and NEXT lines in 24 short lines. From those it followed the chain in its head,
-     left the decoys out, and wrote 156. Correct, in both runs, in five requests.</p>
-  <div class="table-wrap">
-    <table>
-      <tr><th></th><th class="num">without compaction</th><th class="num">with compaction</th></tr>
-      <tr><td>agent requests</td><td class="num">5</td><td class="num">5</td></tr>
-      <tr><td>compactions</td><td class="num">0</td><td class="num">0</td></tr>
-      <tr><td>largest request (estimate)</td><td class="num">1,377</td><td class="num">1,365</td></tr>
-      <tr><td>tokens sent (reported)</td><td class="num">13,579</td><td class="num">14,014</td></tr>
-      <tr><td>TOTAL.txt</td><td class="num">156</td><td class="num">156</td></tr>
-    </table>
-  </div>
-  <ul>
-    <li><strong>The task was too easy to shortcut.</strong> The chain was meant to force eight
-        reads, but <code>grep</code> sees every file at once. The conversation never came near
-        the 2,500-token budget, so the two runs are the same run twice.</li>
-    <li><strong>That is good agent behaviour.</strong> Reading only the lines that matter is
-        the best way to keep a context small. The demo needs a task where that is not
-        possible.</li>
-    <li><strong>The budget measures less than the model receives.</strong> The estimate for
-        run 1 was 4,809 tokens; the vendor reported 13,579. <code>estimate_tokens()</code>
-        counts the messages, and the compactor's budget counts only those. Every request also
-        carries the tool schemas, which the vendor counts and the budget does not. On the first
-        request the vendor reported 1,619 tokens against an estimate of 241: about 1,400 tokens
-        of fixed overhead on every call. So a budget of 2,500 means a real request of about
-        3,900, and compaction starts later than the setting suggests.</li>
-    <li><strong>Both fixed since.</strong> The task now gets only <code>read_file</code> and
-        <code>write_file</code>, and <code>run_task()</code> counts the system prompt and tool
-        schemas against the budget (<code>estimate_overhead()</code> in
-        <code>context.py</code>). The <a href="#live-now">live run above</a> shows a live
-        model working through compaction.</li>
-  </ul>
-
-  <h2 id="bug">Found by this demo</h2>
-  <p>The first offline run of this demo gave <span class="bad">TOTAL.txt = 51</span> with
-     compaction: only the last three files' values (4 + 16 + 31). The summary read
-     <code>Files read so far:</code> with nothing after it.</p>
-  <div class="table-wrap">
-    <table>
-      <tr><th>Cause</th><th>Fix</th></tr>
-      <tr><td>Before summarising, <code>transcript()</code> cut every message to its
-              <strong>first</strong> 2,000 characters. Each chain file comes back from
-              <code>read_file</code> as about 2,300, with
-              <code>VALUE</code> and <code>NEXT</code> at the end, so the summariser never saw
-              them. The original Day 3 code had the same <code>[:2000]</code>.</td>
-          <td><code>_shorten()</code> keeps the first and last 1,000 characters and marks the
-              middle as cut, as the <code>bash</code> tool already does with long output. Long
-              tool results usually end with what matters: a test summary, an error, a final
-              value. New unit test.</td></tr>
-    </table>
-  </div>
-  <p>The size savings were the same before and after the fix. Only the answer changed, which
-     is why a compaction demo has to check the result, not just the token count.</p>
 
   <h3>Something to watch</h3>
   <div class="callout">

@@ -283,8 +283,7 @@ I can also adapt this to React or Tailwind, add an online ordering section, or c
         accepted it, so the conversion of tool calls and results to Anthropic's format is
         correct.</li>
     <li>The answer is correct: 4 + 3 + 1 = 8, which does not beat 10. The model even said
-        by how much: “It's 2 short”. (Earlier runs rolled 6, 5, 5 = 16, which does, and
-        1, 2, 4 = 7, which does not.)</li>
+        by how much: “It's 2 short”.</li>
     <li>Token usage was parsed for both calls. The second call's input grew from 421 to 484
         tokens because it carries the tool call and result.</li>
   </ul>
@@ -299,10 +298,8 @@ I can also adapt this to React or Tailwind, add an online ordering section, or c
     <li>It also knew what it could not do: it says the contact form “currently shows an
         alert” and suggests services to connect it to, instead of claiming a working
         form.</li>
-    <li>The reply is not deterministic. Four runs produced four different pages and four
-        lengths: 4,533, 5,454, 5,181 and, this run, 4,554 output tokens. The last three all
-        named the shop “Ember &amp; Bean”, so the variety is in the layout and wording more
-        than the idea.</li>
+    <li>The reply is not deterministic: each run writes a different page, at a different
+        length. This one used 4,554 output tokens.</li>
     <li>The closing offer ("I can also adapt it to React or Tailwind") cannot be taken up
         here. The demo ends the conversation after each task, so there is no turn in which a
         user could reply. The model offers because that is what it does in a chat; a
@@ -312,24 +309,18 @@ I can also adapt this to React or Tailwind, add an online ordering section, or c
 
   <h3>Something to watch</h3>
   <div class="callout">
-    <p style="margin-top:0"><strong>Silent truncation risk.</strong> The landing-page reply
+    <p style="margin-top:0"><strong>The output limit is close.</strong> The landing-page reply
       used 4,554 output tokens, more than half the default limit
-      (<code>max_output_tokens = 8192</code> for Anthropic); earlier runs used up to 5,454,
-      two-thirds of it.
-      Length varies from run to run, so a longer reply would eventually be cut off
-      at the limit, and the harness would not notice: the providers ignore the vendor's stop
-      reason (<code>stop_reason: "max_tokens"</code> for Anthropic, <code>finishReason</code>
-      for Gemini, <code>finish_reason: "length"</code> for OpenAI).</p>
-    <p>The 4,554 tokens are the size of the <em>whole</em> model reply: the introduction,
-      the HTML, and the "What's included" and "Customizing" notes after it. All of it counts
-      towards the limit. A reply that hits the limit loses its <em>end</em>, which here means
-      these notes or even the closing <code>&lt;/html&gt;</code> tag, leaving a page that
-      looks complete in the transcript but is broken.</p>
-    <p style="margin-bottom:0">The loop used to treat the cut-off text as a finished answer.
-      <strong>Fixed since:</strong> every provider now reads its vendor's stop reason
-      (<code>max_tokens</code>, <code>MAX_TOKENS</code>, <code>length</code>), the loop emits a
-      <code>truncated</code> event (this demo prints it), and the returned answer ends with a
-      warning that it is incomplete.</p>
+      (<code>max_output_tokens = 8192</code> for Anthropic), and length varies from run to
+      run. The 4,554 are the <em>whole</em> reply: the introduction, the HTML, and the
+      “What's included” and “Easy customizations” notes after it. A reply that hits the limit
+      loses its <em>end</em>: these notes, or even the closing <code>&lt;/html&gt;</code> tag,
+      leaving a page that looks complete but is broken.</p>
+    <p style="margin-bottom:0"><strong>It would not be silent.</strong> Every provider reads its
+      vendor's stop reason (<code>stop_reason: "max_tokens"</code> for Anthropic,
+      <code>finishReason: "MAX_TOKENS"</code> for Gemini, <code>finish_reason: "length"</code>
+      for OpenAI). The loop then emits a <code>truncated</code> event, which this demo prints,
+      and the returned answer ends with a warning that it is incomplete.</p>
   </div>
 
   <!-- ------------------------------------------------------------------ -->
