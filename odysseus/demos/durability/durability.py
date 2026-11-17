@@ -106,7 +106,8 @@ def describe(message: Mapping[str, Any]) -> str:
         shown = text[0][:70] if text else ""
         return "assistant " + (" + ".join(calls) if calls else shown)
     if role == "tool":
-        return f"tool      {message['name']}: {message['text'][:70]}"
+        first = (message["text"].strip().splitlines() or [""])[0]
+        return f"tool      {message['name']}: {first[:70]}"
     return f"user      {message.get('text', '')[:70]}"
 
 
@@ -262,8 +263,10 @@ def run_notes(label: str, provider: Provider, delegate: bool
     finally:
         shutil.rmtree(project, ignore_errors=True)
 
+    vendor_reports = any(meter.reported["parent"])
+
     def reported(who: str) -> Any:
-        return sum(meter.reported[who]) or "-"
+        return sum(meter.reported[who]) if vendor_reports else "-"
 
     print(f"\nparent request sizes (estimated tokens): "
           f"{' '.join(map(str, meter.sizes['parent']))}")

@@ -1,0 +1,161 @@
+# durability demo, recorded 2026-11-17, provider: anthropic - claude-sonnet-5-5, exit code 0
+
+$ python3 demos/durability/durability.py
+provider: anthropic - claude-sonnet-5-5
+
+=== part 1a: the first process ===
+session log: .odysseus/sessions/20261117-104046-setup-steps.jsonl
+user: Apply setup steps 1 to 3 in order with the apply_step tool. Each step must be applied exactly once: applying one twice breaks the setup. applied.log records every step applied so far.
+assistant: I'll check `applied.log` first to see whether any steps have already been applied.
+  [tokens in 947, out 85]
+  -> list_files()
+  <- (no matches)
+assistant: The directory is empty, so no steps have been applied yet. I'll apply step 1 first.
+  [tokens in 1008, out 111]
+  -> apply_step(number=1)
+  <- Applied step 1.
+  [tokens in 1098, out 50]
+  -> read_file(path='applied.log')
+  <- 1	step 1 applied
+  [tokens in 1162, out 48]
+  -> apply_step(number=2)
+  !! the process is killed while step 2 runs (after it wrote to applied.log)
+
+the first process ended: killed by signal 9
+applied.log: steps [1, 2]
+
+the session log it left behind:
+   1  user      Apply setup steps 1 to 3 in order with the apply_step tool. Each step 
+   2  assistant list_files()
+   3  tool      list_files: (no matches)
+   4  assistant apply_step(number=1)
+   5  tool      apply_step: Applied step 1.
+   6  assistant read_file(path='applied.log')
+   7  tool      read_file: 1	step 1 applied
+   8  assistant apply_step(number=2)
+
+=== part 1b: a new process resumes from the log ===
+resumed .odysseus/sessions/20261117-104046-setup-steps.jsonl: 8 messages logged, 1 unanswered call(s) answered:
+  apply_step: ERROR: interrupted - the process stopped before this call's result was recorded. It may or may not have run; check its effect before repeating it.
+user: Continue the task.
+assistant: I'll check `applied.log` to see whether step 2 ran before the interruption.
+  [tokens in 1274, out 100]
+  -> read_file(path='applied.log')
+  <- 1	step 1 applied  ...  (2 lines)
+  -> list_files()
+  <- applied.log
+assistant: Step 2 did run before the interruption, so I won't repeat it. Next is step 3.
+  [tokens in 1452, out 78]
+  -> apply_step(number=3)
+  <- Applied step 3.
+  [tokens in 1542, out 50]
+  -> read_file(path='applied.log')
+  <- 1	step 1 applied  ...  (3 lines)
+assistant: All three setup steps are applied, each exactly once.
+  
+  The call for step 2 was interrupted and returned an error. Before retrying it, I read `applied.log`, which already had a "step 2 applied" entry. I didn't repeat the step and went on to step 3.
+  
+  The final `applied.log` has one entry each for steps 1, 2 and 3.
+  [tokens in 1624, out 112]
+
+applied.log: steps [1, 2, 3]
+
+=== part 1: crash and resume ===
+                                                 result
+first process                        killed by signal 9
+messages logged before the kill                       8
+calls answered as interrupted                         1
+messages in the log at the end                       18
+steps applied                                   1, 2, 3
+every step exactly once                             yes
+
+=== part 2a: the agent reads the notes itself ===
+user: Which areas in notes/ have a deadline, and when is each due? Answer with one line per area.
+  [tokens in 813, out 52]
+  -> list_files(pattern='notes/**')
+  <- notes/auth.md  ...  (6 lines)
+  [tokens in 918, out 304]
+  -> read_file(path='notes/auth.md')
+  <- 1	# auth notes  ...  (42 lines)
+  -> read_file(path='notes/billing.md')
+  <- 1	# billing notes  ...  (42 lines)
+  -> read_file(path='notes/docs.md')
+  <- 1	# docs notes  ...  (42 lines)
+  -> read_file(path='notes/metrics.md')
+  <- 1	# metrics notes  ...  (42 lines)
+  -> read_file(path='notes/mobile.md')
+  <- 1	# mobile notes  ...  (42 lines)
+  -> read_file(path='notes/search.md')
+  <- 1	# search notes  ...  (42 lines)
+assistant: Two areas in notes/ have a deadline:
+  
+  - **billing**: due 2026-12-01. Switch invoices to the new tax rates.
+  - **search**: due 2027-01-15. Retire the old search index.
+  
+  The other areas (auth, docs, metrics, mobile) say "No deadline set for this area."
+  [tokens in 7091, out 101]
+
+parent request sizes (estimated tokens): 357 448 4509
+parent request sizes (reported): 813 918 7091
+
+=== part 2b: the agent delegates to a sub-agent ===
+user: Which areas in notes/ have a deadline, and when is each due? Answer with one line per area. Delegate the reading to one sub-agent with spawn_agent and answer from its report; do not read the notes yourself.
+  [tokens in 997, out 233]
+  -> spawn_agent(task="In the working directory, there is a folder named notes/. Read every file in it (use list_files with pat)
+      [sub-agent] [tokens in 1021, out 54]
+      [sub-agent] -> list_files(pattern='notes/**/*')
+      [sub-agent] <- notes/auth.md  ...  (6 lines)
+      [sub-agent] [tokens in 1128, out 304]
+      [sub-agent] -> read_file(path='notes/auth.md')
+      [sub-agent] <- 1	# auth notes  ...  (42 lines)
+      [sub-agent] -> read_file(path='notes/billing.md')
+      [sub-agent] <- 1	# billing notes  ...  (42 lines)
+      [sub-agent] -> read_file(path='notes/docs.md')
+      [sub-agent] <- 1	# docs notes  ...  (42 lines)
+      [sub-agent] -> read_file(path='notes/metrics.md')
+      [sub-agent] <- 1	# metrics notes  ...  (42 lines)
+      [sub-agent] -> read_file(path='notes/mobile.md')
+      [sub-agent] <- 1	# mobile notes  ...  (42 lines)
+      [sub-agent] -> read_file(path='notes/search.md')
+      [sub-agent] <- 1	# search notes  ...  (42 lines)
+      [sub-agent] assistant: I read all 6 files in `notes/`. Each has one area and 40 routine meeting notes, with a deadline or "no deadline" line at the end. I didn't modify any files.
+      [sub-agent]   
+      [sub-agent]   **Deadlines**
+      [sub-agent]   - Billing: 2026-12-01, switch invoices to the new tax rates (notes/billing.md, line 42)
+      [sub-agent]   - Search: 2027-01-15, retire the old search index (notes/search.md, line 42)
+      [sub-agent]   
+      [sub-agent]   **No deadline**
+      [sub-agent]   - Auth (notes/auth.md): "No deadline set for this area."
+      [sub-agent]   - Docs (notes/docs.md): "No deadline set for this area."
+      [sub-agent]   - Metrics (notes/metrics.md): "No deadline set for this area."
+      [sub-agent]   - Mobile (notes/mobile.md): "No deadline set for this area."
+      [sub-agent]   
+      [sub-agent]   **Ambiguity or conflicts:** None. Each area appears in only one file, and no file mentions another area's deadline. Both dates are written in unambiguous ISO format (YYYY-MM-DD).
+      [sub-agent] [tokens in 7301, out 312]
+  <- I read all 6 files in `notes/`. Each has one area and 40 routine meeting notes, with a deadline or "  ...  (10 lines)
+assistant: Two areas in notes/ have a deadline:
+  
+  - **Billing:** due 2026-12-01 (switch invoices to the new tax rates).
+  - **Search:** due 2027-01-15 (retire the old search index).
+  
+  Auth, Docs, Metrics and Mobile have no deadline. This comes from the sub-agent's report. I didn't read the notes myself.
+  [tokens in 1545, out 120]
+
+parent request sizes (estimated tokens): 485 890
+sub-agent request sizes (estimated tokens): 525 617 4678
+parent request sizes (reported): 997 1545
+sub-agent request sizes (reported): 1021 1128 7301
+
+=== part 2: before / after ===
+                                           reads itself      with a sub-agent
+parent requests                                       3                     2
+sub-agent requests                                    0                     3
+largest parent request (est.)                      4509                   890
+largest parent request (rep.)                      7091                  1545
+parent messages at the end                           11                     4
+tokens sent by parent (est.)                       5314                  1375
+tokens sent by sub-agent (est.)                       0                  5820
+tokens sent in all (est.)                          5314                  7195
+tokens sent by parent (rep.)                       8822                  2542
+tokens sent by sub-agent (rep.)                       0                  9450
+both deadlines in the answer                        yes                   yes

@@ -245,12 +245,145 @@ sequenceDiagram
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="output">Sample output</h2>
+  <h3>Live run: <code>anthropic</code> / <code>claude-sonnet-5-5, exit code 0</code></h3>
+<pre><code>=== part 1a: the first process ===
+session log: .odysseus/sessions/20261117-104046-setup-steps.jsonl
+user: Apply setup steps 1 to 3 in order with the apply_step tool. Each step must be applied exactly once: applying one twice breaks the setup. applied.log records every step applied so far.
+assistant: I&#x27;ll check `applied.log` first to see whether any steps have already been applied.
+  [tokens in 947, out 85]
+  -&gt; list_files()
+  &lt;- (no matches)
+assistant: The directory is empty, so no steps have been applied yet. I&#x27;ll apply step 1 first.
+  [tokens in 1008, out 111]
+  -&gt; apply_step(number=1)
+  &lt;- Applied step 1.
+  [tokens in 1098, out 50]
+  -&gt; read_file(path=&#x27;applied.log&#x27;)
+  &lt;- 1	step 1 applied
+  [tokens in 1162, out 48]
+  -&gt; apply_step(number=2)
+  !! the process is killed while step 2 runs (after it wrote to applied.log)
+
+the first process ended: killed by signal 9
+applied.log: steps [1, 2]
+
+the session log it left behind:
+   1  user      Apply setup steps 1 to 3 in order with the apply_step tool. Each step 
+   2  assistant list_files()
+   3  tool      list_files: (no matches)
+   4  assistant apply_step(number=1)
+   5  tool      apply_step: Applied step 1.
+   6  assistant read_file(path=&#x27;applied.log&#x27;)
+   7  tool      read_file: 1	step 1 applied
+   8  assistant apply_step(number=2)
+
+=== part 1b: a new process resumes from the log ===
+resumed .odysseus/sessions/20261117-104046-setup-steps.jsonl: 8 messages logged, 1 unanswered call(s) answered:
+  apply_step: ERROR: interrupted - the process stopped before this call&#x27;s result was recorded. It may or may not have run; check its effect before repeating it.
+user: Continue the task.
+assistant: I&#x27;ll check `applied.log` to see whether step 2 ran before the interruption.
+  [tokens in 1274, out 100]
+  -&gt; read_file(path=&#x27;applied.log&#x27;)
+  &lt;- 1	step 1 applied  ...  (2 lines)
+  -&gt; list_files()
+  &lt;- applied.log
+assistant: Step 2 did run before the interruption, so I won&#x27;t repeat it. Next is step 3.
+  [tokens in 1452, out 78]
+  -&gt; apply_step(number=3)
+  &lt;- Applied step 3.
+  [tokens in 1542, out 50]
+  -&gt; read_file(path=&#x27;applied.log&#x27;)
+  &lt;- 1	step 1 applied  ...  (3 lines)
+assistant: All three setup steps are applied, each exactly once.
+  [tokens in 1624, out 112]
+
+applied.log: steps [1, 2, 3]
+
+=== part 1: crash and resume ===
+                                                 result
+first process                        killed by signal 9
+messages logged before the kill                       8
+calls answered as interrupted                         1
+messages in the log at the end                       18
+steps applied                                   1, 2, 3
+every step exactly once                             yes</code></pre>
+<pre><code>=== part 2a: the agent reads the notes itself ===
+user: Which areas in notes/ have a deadline, and when is each due? Answer with one line per area.
+  [tokens in 813, out 52]
+  -&gt; list_files(pattern=&#x27;notes/**&#x27;)
+  &lt;- notes/auth.md  ...  (6 lines)
+  [tokens in 918, out 304]
+  -&gt; read_file(path=&#x27;notes/auth.md&#x27;)
+  &lt;- 1	# auth notes  ...  (42 lines)
+  -&gt; read_file(path=&#x27;notes/billing.md&#x27;)
+  &lt;- 1	# billing notes  ...  (42 lines)
+  -&gt; read_file(path=&#x27;notes/docs.md&#x27;)
+  &lt;- 1	# docs notes  ...  (42 lines)
+  -&gt; read_file(path=&#x27;notes/metrics.md&#x27;)
+  &lt;- 1	# metrics notes  ...  (42 lines)
+  -&gt; read_file(path=&#x27;notes/mobile.md&#x27;)
+  &lt;- 1	# mobile notes  ...  (42 lines)
+  -&gt; read_file(path=&#x27;notes/search.md&#x27;)
+  &lt;- 1	# search notes  ...  (42 lines)
+assistant: Two areas in notes/ have a deadline:
+  [tokens in 7091, out 101]
+
+parent request sizes (estimated tokens): 357 448 4509
+parent request sizes (reported): 813 918 7091
+
+=== part 2b: the agent delegates to a sub-agent ===
+user: Which areas in notes/ have a deadline, and when is each due? Answer with one line per area. Delegate the reading to one sub-agent with spawn_agent and answer from its report; do not read the notes yourself.
+  [tokens in 997, out 233]
+  -&gt; spawn_agent(task=&quot;In the working directory, there is a folder named notes/. Read every file in it (use list_files with pat)
+      [sub-agent] [tokens in 1021, out 54]
+      [sub-agent] -&gt; list_files(pattern=&#x27;notes/**/*&#x27;)
+      [sub-agent] &lt;- notes/auth.md  ...  (6 lines)
+      [sub-agent] [tokens in 1128, out 304]
+      [sub-agent] -&gt; read_file(path=&#x27;notes/auth.md&#x27;)
+      [sub-agent] &lt;- 1	# auth notes  ...  (42 lines)
+      [sub-agent] -&gt; read_file(path=&#x27;notes/billing.md&#x27;)
+      [sub-agent] &lt;- 1	# billing notes  ...  (42 lines)
+      [sub-agent] -&gt; read_file(path=&#x27;notes/docs.md&#x27;)
+      [sub-agent] &lt;- 1	# docs notes  ...  (42 lines)
+      [sub-agent] -&gt; read_file(path=&#x27;notes/metrics.md&#x27;)
+      [sub-agent] &lt;- 1	# metrics notes  ...  (42 lines)
+      [sub-agent] -&gt; read_file(path=&#x27;notes/mobile.md&#x27;)
+      [sub-agent] &lt;- 1	# mobile notes  ...  (42 lines)
+      [sub-agent] -&gt; read_file(path=&#x27;notes/search.md&#x27;)
+      [sub-agent] &lt;- 1	# search notes  ...  (42 lines)
+      [sub-agent] assistant: I read all 6 files in `notes/`. Each has one area and 40 routine meeting notes, with a deadline or &quot;no deadline&quot; line at the end. I didn&#x27;t modify any files.
+      [sub-agent] [tokens in 7301, out 312]
+  &lt;- I read all 6 files in `notes/`. Each has one area and 40 routine meeting notes, with a deadline or &quot;  ...  (10 lines)
+assistant: Two areas in notes/ have a deadline:
+  [tokens in 1545, out 120]
+
+parent request sizes (estimated tokens): 485 890
+sub-agent request sizes (estimated tokens): 525 617 4678
+parent request sizes (reported): 997 1545
+sub-agent request sizes (reported): 1021 1128 7301
+
+=== part 2: before / after ===
+                                           reads itself      with a sub-agent
+parent requests                                       3                     2
+sub-agent requests                                    0                     3
+largest parent request (est.)                      4509                   890
+largest parent request (rep.)                      7091                  1545
+parent messages at the end                           11                     4
+tokens sent by parent (est.)                       5314                  1375
+tokens sent by sub-agent (est.)                       0                  5820
+tokens sent in all (est.)                          5314                  7195
+tokens sent by parent (rep.)                       8822                  2542
+tokens sent by sub-agent (rep.)                       0                  9450
+both deadlines in the answer                        yes                   yes</code></pre>
+  <p class="dim">Full output: <a href="output/live.txt"><code>output/live.txt</code></a>.
+     Long model answers are cut to their first line above.</p>
+
   <h3>Offline run (scripted model)</h3>
   <p>The scripted model decides from the conversation it is sent: after an interrupted call
      it reads <code>applied.log</code> and continues from what is there, and it answers
      from the DEADLINE lines it has read.</p>
 <pre><code>=== part 1a: the first process ===
-session log: .odysseus/sessions/20261116-170731-setup-steps.jsonl
+session log: .odysseus/sessions/20261117-103714-setup-steps.jsonl
 user: Apply setup steps 1 to 3 in order with the apply_step tool. Each step must be applied exactly once: applying one twice breaks the setup. applied.log records every step applied so far.
   -&gt; apply_step(number=1)
   &lt;- Applied step 1.
@@ -267,7 +400,7 @@ the session log it left behind:
    4  assistant apply_step(number=2)
 
 === part 1b: a new process resumes from the log ===
-resumed .odysseus/sessions/20261116-170731-setup-steps.jsonl: 4 messages logged, 1 unanswered call(s) answered:
+resumed .odysseus/sessions/20261117-103714-setup-steps.jsonl: 4 messages logged, 1 unanswered call(s) answered:
   apply_step: ERROR: interrupted - the process stopped before this call&#x27;s result was recorded. It may or may not have run; check its effect before repeating it.
 user: Continue the task.
 assistant: That step was interrupted; checking what was applied before repeating anything.
@@ -349,46 +482,57 @@ tokens sent by sub-agent (rep.)                       -                     -
 both deadlines in the answer                        yes                   yes</code></pre>
   <p class="dim">Full output: <a href="output/offline.txt"><code>output/offline.txt</code></a>.</p>
 
-  <h3>Live run</h3>
-  <p>Not recorded yet. Run <code>python3 demos/record.py durability</code> to add
-     <code>output/live.txt</code>.</p>
-
   <!-- ------------------------------------------------------------------ -->
   <h2 id="analysis">Analysis</h2>
   <h3>Part 1: the crash and the resume</h3>
-  <p><span class="ok">Every step was applied exactly once.</span> The first process was
-     killed by signal 9 after logging 4 messages. The last of them is the call
-     <code>apply_step(2)</code>, with no result, while <code>applied.log</code> already held
+  <p><span class="ok">Live: every step was applied exactly once.</span> The first process was
+     killed by signal 9 after logging 8 messages. The last of them is the call
+     <code>apply_step(2)</code> with no result, while <code>applied.log</code> already held
      steps 1 and 2. On resume, <code>repair()</code> answered 1 call as
-     interrupted. The model read <code>applied.log</code>, found step 2 there, and applied
-     only step 3. The log ends with 11 messages, including the repair, so a second
-     resume would replay the same valid history.</p>
-  <p>The outcome depends on the model reading the error and checking before it acts. The
-     scripted model is written to do that, so the offline run shows what the harness
-     provides (a valid history and an honest error), not what a real model will do with it.
-     A live run is the real test.</p>
+     interrupted, and the model did what the error asks. Its first words were “I&#x27;ll check `applied.log` to see whether step 2 ran before the interruption.” It found
+     step 2 in
+     <code>applied.log</code>, applied only step 3, and read the log once more to confirm.
+     The log ends with 18 messages, including the repair, so a second resume would
+     replay the same valid history.</p>
+  <p>The model was careful before the crash too. Before step 1 it listed the files to look for
+     <code>applied.log</code>, and after step 1 it read the log back. That is why 8
+     messages were logged before the kill. The offline scripted model applies the steps
+     directly: it logged 4 and ended with 11. Both runs reach the same
+     result.
+     The offline run shows what the harness provides: a valid history and an honest error.
+     The live run shows a real model using them.</p>
 
   <h3>Part 2: before and after a sub-agent</h3>
   <div class="table-wrap">
     <table>
-      <tr><th></th><th class="num">2a: reads itself</th><th class="num">2b: with a sub-agent</th></tr>
-      <tr><td>largest parent request (est.)</td><td class="num">4,411</td><td class="num">596</td></tr>
+      <tr><th>Live run</th><th class="num">2a: reads itself</th><th class="num">2b: with a sub-agent</th></tr>
+      <tr><td>largest parent request (reported)</td><td class="num">7,091</td><td class="num">1,545</td></tr>
+      <tr><td>largest parent request (estimated)</td><td class="num">4,509</td><td class="num">890</td></tr>
       <tr><td>parent messages at the end</td><td class="num">11</td><td class="num">4</td></tr>
-      <tr><td>tokens sent by the parent (est.)</td><td class="num">5,202</td><td class="num">1,081</td></tr>
-      <tr><td>tokens sent by the sub-agent (est.)</td><td class="num">0</td><td class="num">5,373</td></tr>
-      <tr><td>tokens sent in all (est.)</td><td class="num">5,202</td><td class="num">6,454</td></tr>
+      <tr><td>tokens sent by the parent (reported)</td><td class="num">8,822</td><td class="num">2,542</td></tr>
+      <tr><td>tokens sent by the sub-agent (reported)</td><td class="num">0</td><td class="num">9,450</td></tr>
+      <tr><td>tokens sent in all (reported)</td><td class="num">8,822</td><td class="num">11,992</td></tr>
+      <tr><td>both deadlines in the answer</td><td class="num">yes</td><td class="num">yes</td></tr>
     </table>
   </div>
-  <p><span class="ok">The parent's context stayed small.</span> Its largest request was
-     4,411 estimated tokens when it read the six files itself, and 596 when a
-     sub-agent read them: 7.4 times smaller. Its conversation ended
-     with 4 messages instead of 11. Both runs found both deadlines.</p>
-  <p><span class="bad">It is not cheaper.</span> In all, run 2b sent 1,252 more estimated
-     tokens (24% more): the child pays for its own system prompt and
-     tools, and the parent for one more round trip. The files were read once either way. A
-     sub-agent saves the <em>parent's</em> context, which matters when the parent has much
-     more work to do after the reading. Each later parent request would carry
-     3,815 fewer tokens. It does not save tokens on a task this short.</p>
+  <p><span class="ok">The parent's context stayed small.</span> In the live run its largest
+     request was 7,091 reported tokens when it read the six files itself, and
+     1,545 when a sub-agent read them: 4.6 times smaller. Its
+     conversation ended with 4 messages instead of 11. The model delegated as told,
+     wrote the child a detailed brief (233 output tokens; the visible start tells it
+     which tool to use), and answered from the
+     10-line report without reading a note. Both runs found both deadlines.</p>
+  <p><span class="bad">It is not cheaper.</span> In all, run 2b sent 3,170 more
+     reported tokens (36% more). The child pays for its own system
+     prompt and tools, and the parent for writing the brief and one more round trip. The child's
+     report was also longer than it needed to be: it listed the areas without deadlines and added a
+     note on ambiguities, and all of it lands in the parent's conversation. The files were
+     read once either way. A sub-agent saves the <em>parent's</em> context, which matters when
+     the parent has much more work to do after the reading, since every later request would
+     carry about 5,546 fewer tokens. On a task this short it costs more.</p>
+  <p>The offline run shows the same shape: the largest parent request went from 4,411
+     to 596 estimated tokens, and the total rose from 5,202 to
+     6,454.</p>
 
   <div class="callout">
     <p style="margin-top:0"><strong>The repair can only be honest, not certain.</strong> The
@@ -405,9 +549,9 @@ both deadlines in the answer                        yes                   yes</c
   <!-- ------------------------------------------------------------------ -->
   <h2 id="next">Next steps</h2>
   <ul>
-    <li><strong>Record a live run</strong> and compare: does a real model check
-        <code>applied.log</code> before repeating step 2, and does it delegate when told
-        to?</li>
+    <li><strong>Ask for a shorter report</strong>: <code>SUBAGENT_PROMPT</code> says
+        “complete and concise”, and the live child still wrote 10 lines. A length
+        limit in the prompt would cut what the parent carries.</li>
     <li><strong>Make tools idempotent where it matters</strong>: an <code>apply_step</code>
         that refuses a step already in <code>applied.log</code> would make part 1 safe
         whatever the model does.</li>
