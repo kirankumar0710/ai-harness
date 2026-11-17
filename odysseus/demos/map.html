@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harness Map</title>
+  <style>
+    :root {
+      --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1f; --muted: #5f6368;
+      --border: #e2e2de; --accent: #2f5fd0; --code-bg: #f0f0ec;
+      --ok: #1e7a3c; --warn: #9a5b00; --warn-bg: #fff6e5; --bad: #b3261e;
+      --bar-a: #9aa3b5; --bar-b: #2f5fd0;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16171a; --surface: #1f2125; --text: #e8e8ea; --muted: #a0a4ab;
+        --border: #33363c; --accent: #8fb0ff; --code-bg: #2a2d33;
+        --ok: #6fd08f; --warn: #f0b45a; --warn-bg: #2e2716; --bad: #ff8a80;
+        --bar-a: #5d6472; --bar-b: #8fb0ff;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 2rem 1rem 4rem;
+      font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    main { max-width: 820px; margin: 0 auto; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    h1 { font-size: 1.9rem; margin: .75rem 0 .25rem; }
+    .lead { color: var(--muted); margin: 0 0 1.5rem; }
+    nav.toc { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .92rem;
+              padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.35rem; margin: 2.5rem 0 .75rem; }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; }
+    code { font: .88em ui-monospace, SFMono-Regular, Menlo, monospace;
+           background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem 1.1rem; overflow-x: auto;
+      font: .85rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; padding: 0; font-size: inherit; }
+    .dim { color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+    th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--border);
+             vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .ok { color: var(--ok); font-weight: 600; }
+    .bad { color: var(--bad); font-weight: 600; }
+    .callout {
+      background: var(--warn-bg); border-left: 4px solid var(--warn);
+      padding: .9rem 1.1rem; border-radius: 6px; margin: 1rem 0;
+    }
+    .callout strong { color: var(--warn); }
+    ol li, ul li { margin-bottom: .35rem; }
+    .bars td { padding: .2rem .5rem; border: 0; font-size: .85rem; }
+    .bar { height: .75rem; border-radius: 3px; }
+    .bar.a { background: var(--bar-a); }
+    .bar.b { background: var(--bar-b); }
+    .legend span { display: inline-flex; align-items: center; gap: .35rem; margin-right: 1rem;
+                   font-size: .88rem; color: var(--muted); }
+    .legend i { width: .9rem; height: .6rem; border-radius: 2px; display: inline-block; }
+    main.wide { max-width: 1100px; }
+    td small { color: var(--muted); }
+    .mark { color: var(--warn); font-weight: 600; }
+  </style>
+
+</head>
+<body>
+<main class="wide">
+  <a class="back" href="index.html">← All demos</a>
+  <h1>The map: Odysseus, Claude Code, pi and Hermes</h1>
+  <p class="lead">
+    Every agent harness is built from the same dozen parts. Odysseus has each one in a small
+    file of its own. Once you know them there, the same parts are easy to find in a much
+    bigger harness, even where it leaves a part out on purpose.
+  </p>
+
+  <h2>The parts, side by side</h2>
+  <p>Read across a row to see one part in four harnesses; the last column says what to search
+     for in code you have not read before.</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Part</th><th>Odysseus</th><th>Claude Code</th><th>pi</th><th>Hermes Agent</th>
+          <th>What to look for</th></tr>
+      <tr><td><strong>Doorway</strong><br><small>the command line, interactive or headless</small></td>
+          <td><code>cli.py</code>: <code>python3 -m odysseus_v2</code>, <code>-p</code> headless, <code>--resume</code></td><td><code>claude</code> interactive, <code>claude -p</code> headless, <code>--continue</code> / <code>--resume</code></td><td>the <code>pi</code> terminal UI; an SDK to create sessions from code</td><td>a CLI, and a background gateway that connects messaging platforms</td><td>the <code>main()</code> that parses flags and starts a session</td></tr>
+      <tr><td><strong>Provider</strong><br><small>one way to talk to any model</small></td>
+          <td><code>providers/</code>: <code>Provider.complete()</code>, one subclass per vendor</td><td>Claude models</td><td>multi-provider <span class="mark">†</span></td><td>multi-provider <span class="mark">†</span></td><td>the class or function every model call goes through</td></tr>
+      <tr><td><strong>Agent loop</strong><br><small>call the model, run its tools, repeat</small></td>
+          <td><code>loop.py</code>: <code>run_loop()</code></td><td>the agentic loop: reply, tool use, tool result, repeat</td><td>the agent core, separate from the terminal UI <span class="mark">†</span></td><td>the agent runtime, separate from where commands run</td><td>a <code>while</code> loop around the model call that stops when there is no tool call</td></tr>
+      <tr><td><strong>Tools</strong><br><small>what the model can do</small></td>
+          <td><code>tools.py</code>: six core tools, <code>@tool</code> schemas from signatures</td><td>Read, Write, Edit, Bash, Glob, Grep and more; MCP servers add tools</td><td>four: read, write, edit, bash; more through extensions</td><td>terminal and file tools; MCP servers add tools</td><td>a list of tool schemas sent to the model, and a dispatch by tool name</td></tr>
+      <tr><td><strong>Permission gate</strong><br><small>whether a call may run</small></td>
+          <td><code>security.py</code>: deny rules, then mode (read-only / safe / yolo), then approver</td><td>permission modes (default, acceptEdits, plan, bypassPermissions), allow and deny rules in settings, PreToolUse hooks</td><td>none in the core, by design; an extension can ask for confirmation</td><td>scoped permissions for sub-agents <span class="mark">†</span></td><td>the check between “model asked for a tool” and “tool runs”</td></tr>
+      <tr><td><strong>Isolation</strong><br><small>where commands run</small></td>
+          <td><code>resolve()</code> jails the file tools; <code>bash</code> is not jailed (an open gap)</td><td>an optional sandbox for bash commands</td><td>none by default: it trusts the user</td><td>several execution backends, such as local, containers and remote sandboxes <span class="mark">†</span></td><td>how a shell command is started: directly, in a container, or remotely</td></tr>
+      <tr><td><strong>Context</strong><br><small>keep requests under the window</small></td>
+          <td><code>context.py</code>: <code>Compactor</code> folds old turns into a summary</td><td>automatic compaction near the limit, and <code>/compact</code></td><td>compaction <span class="mark">†</span></td><td>working context as one layer of memory <span class="mark">†</span></td><td>code that counts tokens before a request and rewrites the history</td></tr>
+      <tr><td><strong>Memory</strong><br><small>what survives between sessions</small></td>
+          <td><code>memory.py</code>: <code>AGENT_MEMORY.md</code> in the system prompt; <code>remember</code> tool</td><td><code>CLAUDE.md</code> files (project and user), loaded into every session</td><td>context files in the project <span class="mark">†</span></td><td><code>MEMORY.md</code> and <code>USER.md</code>, plus a search over past sessions</td><td>which files are read into the system prompt, and which tool writes them</td></tr>
+      <tr><td><strong>Skills</strong><br><small>instructions loaded only when needed</small></td>
+          <td><code>skills.py</code>: <code>skills/*/SKILL.md</code>, a catalog in the prompt, <code>use_skill</code></td><td>Skills: folders with a <code>SKILL.md</code>, loaded when relevant</td><td>skills <span class="mark">†</span></td><td><code>SKILL.md</code> folders (the agentskills.io standard); the agent writes and refines its own</td><td>a catalog of one-line descriptions in the prompt, and a loader</td></tr>
+      <tr><td><strong>Session log</strong><br><small>survive a crash, resume later</small></td>
+          <td><code>session.py</code>: append-only JSONL in <code>.odysseus/sessions/</code>; repair on resume</td><td>a JSONL transcript per session, resumed with <code>--resume</code></td><td>sessions you can branch, like version control for a conversation <span class="mark">†</span></td><td>sessions kept under <code>~/.hermes/</code>, searchable <span class="mark">†</span></td><td>where each message is written to disk, and what happens to a half-finished tool call</td></tr>
+      <tr><td><strong>Sub-agents</strong><br><small>a fresh context for a self-contained task</small></td>
+          <td><code>subagent.py</code>: <code>spawn_agent</code>, same policy, capped report</td><td>sub-agents started by a tool, each with its own context; custom ones in <code>.claude/agents/</code></td><td>none in the core, by design; extensions can add them</td><td>isolated sub-agents that can run in parallel <span class="mark">†</span></td><td>a tool whose implementation starts another loop with an empty history</td></tr>
+      <tr><td><strong>Orchestration</strong><br><small>many agents, one goal</small></td>
+          <td><code>fleet.py</code>: <code>run_fleet()</code>, a thread pool of <code>run_task()</code></td><td>headless runs and the Agent SDK, driven by your own code; parallel sessions in separate checkouts</td><td>the SDK, driven by your own code</td><td>the gateway runs sessions and scheduled (cron) jobs</td><td>code outside the loop that decides which agent runs which task</td></tr>
+    </table>
+  </div>
+  <p class="dim"><span class="mark">†</span> Not checked against the project's own
+     documentation: either a third-party write-up describes it, or the sources below do not
+     cover the detail. Check the project's source for the version you read. Claude Code
+     entries describe its documented features; pi and Hermes entries come from the sources
+     below, as of November 2026.</p>
+
+  <h2>Three design choices the map makes visible</h2>
+  <ul>
+    <li><strong>Gate or no gate.</strong> Claude Code asks before acting, by mode and rule;
+        pi asks nothing and leaves that to extensions; Odysseus has both ends
+        (<code>safe</code> and <code>yolo</code>). Neither is wrong: it is a choice about who
+        is watching.</li>
+    <li><strong>Where commands run.</strong> A jail on file paths (as in Odysseus) does not
+        cover a shell. Hermes runs commands in separate backends such as containers; that is
+        the fix for the gap the gate demo shows, where <code>bash</code> reads a file the
+        jail refuses.</li>
+    <li><strong>Memory written by the agent.</strong> Hermes writes and refines its own
+        skills and memory. Odysseus lets the model add one line at a time with
+        <code>remember</code>. Both have the risk the memory demo points out: whatever is
+        saved steers every later session.</li>
+  </ul>
+
+  <h2>How to read any harness with this map</h2>
+  <ol>
+    <li>Find the <strong>model call</strong>, then the loop around it. Everything else hangs
+        off that loop.</li>
+    <li>Find the <strong>tool list</strong> and the dispatch by name. Count the tools.</li>
+    <li>Find the code <strong>between the tool request and the tool run</strong>: that is
+        the gate, if there is one.</li>
+    <li>Read what goes into the <strong>system prompt</strong>: rules, memory files, the
+        skills catalog.</li>
+    <li>Find what happens when the <strong>conversation is too long</strong>.</li>
+    <li>Find where <strong>messages are written to disk</strong>, and what a resume does with
+        a tool call that never got its result.</li>
+    <li>Find how a <strong>second agent</strong> is started: as a tool (a sub-agent), or by
+        code outside the loop (orchestration).</li>
+  </ol>
+  <p>Each step has an Odysseus demo that shows the part working:
+     <a href="dice/dice_walkthrough.html">dice</a> (loop),
+     <a href="gate/gate_walkthrough.html">gate</a> (tools and gate),
+     <a href="skills/skills_walkthrough.html">skills</a>,
+     <a href="memory/memory_walkthrough.html">memory</a>,
+     <a href="context/context_walkthrough.html">context</a>,
+     <a href="durability/durability_walkthrough.html">durability</a> (sessions and
+     sub-agents) and <a href="fleet/fleet_walkthrough.html">fleet</a> (orchestration).</p>
+
+  <h2>Sources</h2>
+  <ul>
+    <li>pi: <a href="https://cdn.jsdelivr.net/npm/@mariozechner/pi-coding-agent@0.73.1/README.md">pi-coding-agent README</a>,
+        <a href="https://agentic-ai.readthedocs.io/en/latest/AgentHarness/pi-dev/">Pi (pi.dev) overview</a>,
+        <a href="https://urandom.io/blog/2026-03-07-pi-dev-deep-dive">pi.dev deep dive</a></li>
+    <li>Hermes Agent: <a href="https://hermes-agent.nousresearch.com/docs">official docs</a>,
+        <a href="https://agentic-ai.readthedocs.io/en/latest/AgentPlatforms/hermes-agent/">Hermes Agent overview</a>,
+        <a href="https://betterstack.com/community/guides/ai/hermes-agent/">Better Stack guide</a></li>
+    <li>Claude Code: <a href="https://docs.claude.com/en/docs/claude-code/overview">documentation</a></li>
+  </ul>
+</main>
+</body>
+</html>

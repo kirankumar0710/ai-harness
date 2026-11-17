@@ -22,7 +22,7 @@ set -u
 DEMOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$DEMOS_DIR")"
 PYTHON="${PYTHON:-python3}"
-ALL_DEMOS="dice gate skills memory context durability"
+ALL_DEMOS="dice gate skills memory context durability fleet"
 
 # Run from a checkout even without "pip install -e .".
 export PYTHONPATH="$PROJECT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"

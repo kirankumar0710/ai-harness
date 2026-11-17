@@ -165,6 +165,28 @@ answer = run_task(provider, "path/to/project", "Fix the failing test.",
 `resume=True` continues the newest log in `.odysseus/sessions/` if there is
 one, and starts a new log otherwise.
 
+Several independent tasks run in parallel with `run_fleet()`, each in its
+own folder:
+
+```python
+from odysseus_v2 import Job, run_fleet
+
+results = run_fleet(provider, [Job("api", "work/api", "Add a /health route"),
+                               Job("docs", "work/docs", "Fix broken links")],
+                    mode="safe", max_workers=2, sessions=True)
+```
+
+From the command line (`odysseus` once installed, or `python3 -m odysseus_v2`):
+
+```bash
+python3 -m odysseus_v2 -d path/to/project            # interactive, asks before acting
+python3 -m odysseus_v2 -d path/to/project -p "Fix the failing test" --mode yolo
+python3 -m odysseus_v2 -d path/to/project --resume   # continue the last session
+```
+
+Headless runs (`-p`) default to safe mode with nobody to approve, so writes and
+commands are refused unless you pass `--mode yolo`.
+
 ## Project layout
 
 ```
@@ -183,6 +205,9 @@ odysseus
 │       ├── session.py                 append-only session log: resume after a crash
 │       ├── subagent.py                spawn_agent: a fresh agent for one sub-task
 │       ├── harness.py                 run_task(): every part connected
+│       ├── fleet.py                   run_fleet(): many run_task calls in parallel
+│       ├── cli.py                     the command line (python3 -m odysseus_v2)
+│       ├── __main__.py                makes python3 -m odysseus_v2 run cli.main
 │       └── providers
 │           ├── __init__.py            create_provider() and the vendor registry
 │           ├── base.py                Provider interface, config, HTTP with retries
@@ -192,6 +217,7 @@ odysseus
 │           └── openai_compatible.py   OpenAI, OpenRouter and other compatible servers
 ├── demos
 │   ├── index.html                     list of demos
+│   ├── map.html                       the same parts in Claude Code, pi and Hermes
 │   ├── record.py                      run a demo and save its full output to <demo>/output/
 │   ├── run.sh                         run every demo, every mode; output to runs/ (git-ignored)
 │   ├── dice                           one tool, two tasks: the loop end to end
@@ -215,15 +241,20 @@ odysseus
 │   │   ├── context.py                 the demo script (--offline needs no API key)
 │   │   ├── output/                    complete output of every recorded run
 │   │   └── context_walkthrough.html   goal, how to run, sample output, analysis
-│   └── durability                     a killed process resumed from its log; a sub-agent
-│       ├── durability.py              the demo script (--offline needs no API key)
+│   ├── durability                     a killed process resumed from its log; a sub-agent
+│   │   ├── durability.py              the demo script (--offline needs no API key)
+│   │   ├── output/                    complete output of every recorded run
+│   │   └── durability_walkthrough.html  goal, how to run, sample output, analysis
+│   └── fleet                          three agents build three projects in parallel
+│       ├── fleet.py                   the demo script (--offline needs no API key)
 │       ├── output/                    complete output of every recorded run
-│       └── durability_walkthrough.html  goal, how to run, sample output, analysis
+│       └── fleet_walkthrough.html     goal, how to run, sample output, analysis
 └── tests
     ├── test_harness.py                offline tests (fake transport, no network)
     ├── test_tools_security.py         tool contracts, path jail, permission gate
     ├── test_context_memory_skills.py  compaction, memory, skills, run_task
-    └── test_session_subagent.py       session log, crash and resume, sub-agents
+    ├── test_session_subagent.py       session log, crash and resume, sub-agents
+    └── test_fleet_cli.py              parallel jobs, the command line
 ```
 
 ## Architecture
@@ -247,6 +278,8 @@ Applications usually call `run_task()`, which connects them all.
 | **Skills** | `skills.py` | lists `skills/*/SKILL.md` in the prompt; the `use_skill` tool loads one when relevant |
 | **Session log** | `session.py` | appends every message to `.odysseus/sessions/*.jsonl` as it happens; resuming replays it, cuts a torn last line and answers calls whose results were lost |
 | **Sub-agents** | `subagent.py` | the `spawn_agent` tool runs a fresh `run_task()` on a self-contained brief, under the same policy, and returns only its report |
+| **Fleet** | `run_fleet()` in `fleet.py` | runs independent jobs in parallel, one `run_task()` per folder; one job's failure is its result, not an exception |
+| **Command line** | `cli.py` | interactive or headless (`-p`) sessions with a session log; `--resume` continues the last one |
 
 ```mermaid
 flowchart TB
@@ -317,7 +350,8 @@ next turn. The rules it keeps:
   with a warning.
 
 Each demo's page in [`demos/`](demos/index.html) traces a concrete run
-through these parts.
+through these parts. [The map](demos/map.html) puts the same parts side by
+side in Claude Code, pi and Hermes Agent.
 
 ## Class layout
 

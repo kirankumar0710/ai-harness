@@ -125,7 +125,7 @@ def _read(path: str | os.PathLike[str]) -> tuple[list[Message], int]:
     return messages, len(data)
 
 
-def _resume(path: str | os.PathLike[str]) -> list[Message]:
+def resume_session(path: str | os.PathLike[str]) -> list[Message]:
     """Load ``path`` and mend the file so appending can continue.
 
     A torn tail is cut off (otherwise the next line would be glued to
@@ -163,7 +163,7 @@ def open_session(workdir: str | os.PathLike[str], label: str = "session",
     if resume:
         path = latest_session(workdir)
         if path is not None:
-            return path, _resume(path)
+            return path, resume_session(path)
     return new_session(workdir, label), []
 
 

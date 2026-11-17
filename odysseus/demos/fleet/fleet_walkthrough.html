@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fleet Demo</title>
+  <style>
+    :root {
+      --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1f; --muted: #5f6368;
+      --border: #e2e2de; --accent: #2f5fd0; --code-bg: #f0f0ec;
+      --ok: #1e7a3c; --warn: #9a5b00; --warn-bg: #fff6e5; --bad: #b3261e;
+      --bar-a: #9aa3b5; --bar-b: #2f5fd0;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16171a; --surface: #1f2125; --text: #e8e8ea; --muted: #a0a4ab;
+        --border: #33363c; --accent: #8fb0ff; --code-bg: #2a2d33;
+        --ok: #6fd08f; --warn: #f0b45a; --warn-bg: #2e2716; --bad: #ff8a80;
+        --bar-a: #5d6472; --bar-b: #8fb0ff;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 2rem 1rem 4rem;
+      font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    main { max-width: 820px; margin: 0 auto; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    h1 { font-size: 1.9rem; margin: .75rem 0 .25rem; }
+    .lead { color: var(--muted); margin: 0 0 1.5rem; }
+    nav.toc { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .92rem;
+              padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.35rem; margin: 2.5rem 0 .75rem; }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; }
+    code { font: .88em ui-monospace, SFMono-Regular, Menlo, monospace;
+           background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem 1.1rem; overflow-x: auto;
+      font: .85rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; padding: 0; font-size: inherit; }
+    .dim { color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+    th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--border);
+             vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .ok { color: var(--ok); font-weight: 600; }
+    .bad { color: var(--bad); font-weight: 600; }
+    .callout {
+      background: var(--warn-bg); border-left: 4px solid var(--warn);
+      padding: .9rem 1.1rem; border-radius: 6px; margin: 1rem 0;
+    }
+    .callout strong { color: var(--warn); }
+    ol li, ul li { margin-bottom: .35rem; }
+    .bars td { padding: .2rem .5rem; border: 0; font-size: .85rem; }
+    .bar { height: .75rem; border-radius: 3px; }
+    .bar.a { background: var(--bar-a); }
+    .bar.b { background: var(--bar-b); }
+    .legend span { display: inline-flex; align-items: center; gap: .35rem; margin-right: 1rem;
+                   font-size: .88rem; color: var(--muted); }
+    .legend i { width: .9rem; height: .6rem; border-radius: 2px; display: inline-block; }
+    .diagram { overflow-x: auto; margin: 1rem 0; }
+    pre.mermaid { background: var(--surface); text-align: center; }
+  </style>
+
+</head>
+<body>
+<main>
+  <a class="back" href="../index.html">← All demos</a>
+  <h1>Fleet: three agents, three projects, at the same time</h1>
+  <p class="lead">
+    <code>demos/fleet/fleet.py</code> gives three small projects to three agents and runs
+    them in parallel with <code>run_fleet()</code>. When they finish, the demo runs every
+    project's tests itself, so a project counts as done only if its tests pass.
+  </p>
+
+  <nav class="toc">
+    <a href="#goal">Goal</a>
+    <a href="#how">How it works</a>
+    <a href="#run">How to run</a>
+    <a href="#output">Sample output</a>
+    <a href="#analysis">Analysis</a>
+    <a href="#next">Next steps</a>
+  </nav>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="goal">Goal</h2>
+  <p>One agent works on one thing at a time, and most of its time is spent waiting for the
+     model. Independent tasks don't need to wait for each other. Orchestration
+     (<code>fleet.py</code>) is deliberately plain code: a thread pool that runs one
+     <code>run_task()</code> per job, each in its own folder. The plan (which jobs, which
+     folders) stays out here in code; the intelligence stays inside each agent. The demo
+     shows:</p>
+  <ol>
+    <li>the jobs <strong>run at the same time</strong>: the log lines of three projects
+        interleave, and wall-clock time is close to the slowest job, not the sum;</li>
+    <li>the jobs <strong>stay independent</strong>: each agent is jailed to its own folder,
+        with its own conversation and session log;</li>
+    <li>the result is <strong>checked, not reported</strong>: the demo runs each project's
+        tests itself after the fleet is done.</li>
+  </ol>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="how">How it works</h2>
+  <h3>The three projects</h3>
+  <p>Each project starts as a folder that holds only its test file: the tests are the spec.
+     Each agent's task is the same sentence with a different module:</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Job</th><th>Task</th><th class="num">tests</th></tr>
+      <tr><td><code>slugify</code></td><td>Build slugify.py so that the tests in test_slugify.py pass. Do not change the tests.</td><td class="num">4</td></tr>
+      <tr><td><code>roman</code></td><td>Build roman.py so that the tests in test_roman.py pass. Do not change the tests.</td><td class="num">4</td></tr>
+      <tr><td><code>wordfreq</code></td><td>Build wordfreq.py so that the tests in test_wordfreq.py pass. Do not change the tests.</td><td class="num">4</td></tr>
+    </table>
+  </div>
+  <p>One of the test files, as the agent finds it:</p>
+<pre><code><span class="dim"># slugify/test_slugify.py</span>
+import unittest
+
+from slugify import slugify
+
+
+class SlugifyTest(unittest.TestCase):
+    def test_words_become_lowercase_and_hyphenated(self):
+        self.assertEqual(slugify(&quot;Hello World&quot;), &quot;hello-world&quot;)
+
+    def test_punctuation_is_dropped(self):
+        self.assertEqual(slugify(&quot;Hello, World!&quot;), &quot;hello-world&quot;)
+
+    def test_runs_of_separators_collapse(self):
+        self.assertEqual(slugify(&quot;  a -- b__c  &quot;), &quot;a-b-c&quot;)
+
+    def test_empty(self):
+        self.assertEqual(slugify(&quot;!!!&quot;), &quot;&quot;)
+
+
+if __name__ == &quot;__main__&quot;:
+    unittest.main()</code></pre>
+
+  <h3>The fleet</h3>
+<pre><code>results = run_fleet(provider, jobs, mode="safe", approver=approver,
+                    max_workers=3, on_event=printer, sessions=True)</code></pre>
+  <div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+    participant D as fleet.py (demo)
+    participant F as run_fleet()
+    participant A as run_task: slugify/
+    participant B as run_task: roman/
+    participant C as run_task: wordfreq/
+
+    D->>F: three Jobs (name, folder, task)
+    F->>F: check_jobs(): unique names, no shared folder
+    par one thread per job
+        F->>A: run_task(provider, slugify/, task)
+        A->>A: read tests, write module, run tests
+    and
+        F->>B: run_task(provider, roman/, task)
+        B->>B: read tests, write module, run tests
+    and
+        F->>C: run_task(provider, wordfreq/, task)
+        C->>C: read tests, write module, run tests
+    end
+    A-->>F: JobResult (ok, answer, seconds, session)
+    B-->>F: JobResult
+    C-->>F: JobResult
+    F-->>D: results, in job order
+    D->>D: run each project's tests itself
+</pre>
+  </div>
+  <ul>
+    <li><strong>One provider for all three.</strong> Providers keep no state between calls,
+        so one instance is shared. <code>run_fleet</code> also accepts a function that makes
+        one per job.</li>
+    <li><strong>One approver, asked one call at a time.</strong> In safe mode the approver
+        allows <code>write_file</code> and <code>edit_file</code> (the jail keeps each agent
+        in its own folder), and <code>bash</code> only for
+        <code>python3 -m unittest</code>, with optional <code>2&gt;&amp;1</code> or
+        <code>| tail</code>. The fleet calls it under a lock, so a console approver would ask
+        one question at a time.</li>
+    <li><strong>A failing job is a result, not an exception.</strong> One job's error cannot
+        stop the others. Ctrl-C cancels the jobs that have not started.</li>
+    <li><strong>Each job has a session log</strong> in its own folder
+        (<code>sessions=True</code>), so a crashed fleet can be resumed job by job.</li>
+  </ul>
+
+  <h3>Reading the output</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Part</th><th>Meaning</th></tr>
+      <tr><td><code>1.5s</code></td><td>seconds since the fleet started</td></tr>
+      <tr><td><code>[roman   ]</code></td><td>which job the line belongs to</td></tr>
+      <tr><td><code>-&gt; tool(arg)</code> / <code>&lt;- ...</code></td><td>a tool call and
+          the last line of its result</td></tr>
+      <tr><td><code>!! ...</code></td><td>an error or a refusal</td></tr>
+      <tr><td><code>logged</code></td><td>lines in the job's session log</td></tr>
+    </table>
+  </div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="run">How to run</h2>
+  <h3>0. Install the package (once)</h3>
+  <p>From the <code>odysseus</code> project folder.</p>
+<pre><code>pip install -e .</code></pre>
+  <h3>1. Offline (no API key)</h3>
+<pre><code>python3 demos/fleet/fleet.py --offline</code></pre>
+  <h3>2. Against a real model</h3>
+  <p>Set the provider and key as in the dice demo, then:</p>
+<pre><code>python3 demos/fleet/fleet.py
+python3 demos/fleet/fleet.py --workers 1     <span class="dim"># the same jobs, one at a time</span></code></pre>
+  <p>To save the complete output, use <code>python3 demos/record.py fleet [--offline]</code>.</p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="output">Sample output</h2>
+  <h3>Live run</h3>
+  <p>Not recorded yet. Run <code>python3 demos/record.py fleet</code> to add
+     <code>output/live.txt</code>.</p>
+
+  <h3>Offline run (scripted model)</h3>
+  <p>The scripted model reads the tests, writes a known-good module, runs the tests and
+     reports. Each request waits 0.5 s to stand in for a
+     real model's response time; without that there would be nothing to overlap.</p>
+<pre><code>projects: slugify, roman, wordfreq (workers: 3)
+  slugify  Build slugify.py so that the tests in test_slugify.py pass. Do not change the tests.
+  roman    Build roman.py so that the tests in test_roman.py pass. Do not change the tests.
+  wordfreq Build wordfreq.py so that the tests in test_wordfreq.py pass. Do not change the tests.
+
+  0.5s [wordfreq] -&gt; read_file(test_wordfreq.py)
+  0.5s [wordfreq] &lt;- 22	    unittest.main()  (22 lines)
+  0.5s [slugify ] -&gt; read_file(test_slugify.py)
+  0.5s [roman   ] -&gt; read_file(test_roman.py)
+  0.5s [roman   ] &lt;- 28	    unittest.main()  (28 lines)
+  0.5s [slugify ] &lt;- 21	    unittest.main()  (21 lines)
+  1.0s [wordfreq] -&gt; write_file(wordfreq.py)
+  1.0s [wordfreq] &lt;- Wrote 258 chars to wordfreq.py
+  1.0s [roman   ] -&gt; write_file(roman.py)
+  1.0s [slugify ] -&gt; write_file(slugify.py)
+  1.0s [slugify ] &lt;- Wrote 121 chars to slugify.py
+  1.0s [roman   ] &lt;- Wrote 666 chars to roman.py
+  1.5s [wordfreq] -&gt; bash(python3 -m unittest -v)
+  1.5s [roman   ] -&gt; bash(python3 -m unittest -v)
+  1.5s [slugify ] -&gt; bash(python3 -m unittest -v)
+  1.6s [wordfreq] &lt;- OK  (7 lines)
+  1.6s [slugify ] &lt;- OK  (7 lines)
+  1.6s [roman   ] &lt;- OK  (7 lines)
+  2.1s [wordfreq] assistant: wordfreq.py is written and its tests pass.
+  2.1s [slugify ] assistant: slugify.py is written and its tests pass.
+  2.1s [roman   ] assistant: roman.py is written and its tests pass.
+
+=== results ===
+job          agent  seconds  requests  tokens in  logged  tests (run by the demo)
+slugify         ok      2.1         4          -       8  pass: OK
+roman           ok      2.1         4          -       8  pass: OK
+wordfreq        ok      2.1         4          -       8  pass: OK
+
+wall-clock time: 2.1 s; the jobs&#x27; times add up to 6.2 s (3.0x)
+projects passing: 3 of 3</code></pre>
+  <p class="dim">Full output: <a href="output/offline.txt"><code>output/offline.txt</code></a>.</p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="analysis">Analysis</h2>
+
+  <h3>Offline run</h3>
+  <p><span class="ok">3 of 3 projects pass</span>, checked by the
+     demo. The three jobs took 6.2 s between them and 2.1 s of
+     wall-clock time: 3.0 times faster than one after another. The log lines show
+     why: all three agents read their tests at 0.5 s, wrote their modules at 1.0 s and ran
+     their tests at 1.5 s. With a fixed 0.5 s per request
+     and the same four requests per job, the speed-up equals the number of workers. A live
+     run is not that even: jobs take different numbers of turns, and the slowest one sets
+     the wall-clock time.</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th>offline</th><th>agent</th><th class="num">seconds</th>
+          <th class="num">requests</th><th class="num">tokens in</th>
+          <th class="num">logged</th><th>tests, run by the demo</th></tr>
+      <tr><td><code>slugify</code></td><td>ok</td><td class="num">2.1</td><td class="num">4</td><td class="num">-</td><td class="num">8</td><td><span class="ok">pass</span>: OK</td></tr>
+      <tr><td><code>roman</code></td><td>ok</td><td class="num">2.1</td><td class="num">4</td><td class="num">-</td><td class="num">8</td><td><span class="ok">pass</span>: OK</td></tr>
+      <tr><td><code>wordfreq</code></td><td>ok</td><td class="num">2.1</td><td class="num">4</td><td class="num">-</td><td class="num">8</td><td><span class="ok">pass</span>: OK</td></tr>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p style="margin-top:0"><strong>Parallel is not cheaper.</strong> A fleet saves time,
+      not tokens: every job pays for its own requests, whether they run together or one
+      after another. It also multiplies the request rate, so a vendor's rate limit arrives
+      sooner. The transport retries a rate-limited request, which makes jobs slower rather
+      than failing them.</p>
+    <p style="margin-bottom:0"><strong>Independent means independent.</strong> The fleet
+      refuses two jobs in one folder, but it cannot stop jobs from depending on each other's
+      results. Work that has an order (build the library, then the app that uses it) needs
+      a plan in code that runs the steps in turn, or one agent.</p>
+  </div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <h2 id="next">Next steps</h2>
+  <ul>
+    <li><strong>Record a live run</strong>, and one with <code>--workers 1</code>, to
+        compare wall-clock time on a real model.</li>
+    <li><strong>Resume a fleet</strong>: rerun only the jobs whose result is not ok, from
+        their session logs.</li>
+    <li><strong>Read other harnesses with <a href="../map.html">the map</a></strong>: the
+        same parts, in pi, Claude Code and Hermes.</li>
+  </ul>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) {
+    const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "default" });
+  }
+</script>
+</body>
+</html>

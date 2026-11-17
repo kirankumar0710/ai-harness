@@ -1,0 +1,40 @@
+# fleet demo, recorded 2026-11-17, provider: offline - scripted replies (0.5 s per request), exit code 0
+
+$ python3 demos/fleet/fleet.py --offline
+provider: offline - scripted replies (0.5 s per request)
+
+projects: slugify, roman, wordfreq (workers: 3)
+  slugify  Build slugify.py so that the tests in test_slugify.py pass. Do not change the tests.
+  roman    Build roman.py so that the tests in test_roman.py pass. Do not change the tests.
+  wordfreq Build wordfreq.py so that the tests in test_wordfreq.py pass. Do not change the tests.
+
+  0.5s [wordfreq] -> read_file(test_wordfreq.py)
+  0.5s [wordfreq] <- 22	    unittest.main()  (22 lines)
+  0.5s [slugify ] -> read_file(test_slugify.py)
+  0.5s [roman   ] -> read_file(test_roman.py)
+  0.5s [roman   ] <- 28	    unittest.main()  (28 lines)
+  0.5s [slugify ] <- 21	    unittest.main()  (21 lines)
+  1.0s [wordfreq] -> write_file(wordfreq.py)
+  1.0s [wordfreq] <- Wrote 258 chars to wordfreq.py
+  1.0s [roman   ] -> write_file(roman.py)
+  1.0s [slugify ] -> write_file(slugify.py)
+  1.0s [slugify ] <- Wrote 121 chars to slugify.py
+  1.0s [roman   ] <- Wrote 666 chars to roman.py
+  1.5s [wordfreq] -> bash(python3 -m unittest -v)
+  1.5s [roman   ] -> bash(python3 -m unittest -v)
+  1.5s [slugify ] -> bash(python3 -m unittest -v)
+  1.6s [wordfreq] <- OK  (7 lines)
+  1.6s [slugify ] <- OK  (7 lines)
+  1.6s [roman   ] <- OK  (7 lines)
+  2.1s [wordfreq] assistant: wordfreq.py is written and its tests pass.
+  2.1s [slugify ] assistant: slugify.py is written and its tests pass.
+  2.1s [roman   ] assistant: roman.py is written and its tests pass.
+
+=== results ===
+job          agent  seconds  requests  tokens in  logged  tests (run by the demo)
+slugify         ok      2.1         4          -       8  pass: OK
+roman           ok      2.1         4          -       8  pass: OK
+wordfreq        ok      2.1         4          -       8  pass: OK
+
+wall-clock time: 2.1 s; the jobs' times add up to 6.2 s (3.0x)
+projects passing: 3 of 3

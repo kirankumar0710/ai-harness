@@ -11,6 +11,9 @@ authors = [{ name = "Kiran Kumar Saravana" }]
 dependencies = []            # standard library only
 dynamic = ["version"]
 
+[project.scripts]
+odysseus = "odysseus_v2.cli:main"   # the command line, after pip install
+
 [tool.setuptools]
 package-dir = { "" = "src" }       # src layout: code lives in src/odysseus_v2
 packages = ["odysseus_v2", "odysseus_v2.providers"]
