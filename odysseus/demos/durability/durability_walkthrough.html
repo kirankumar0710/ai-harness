@@ -246,7 +246,9 @@ sequenceDiagram
   <!-- ------------------------------------------------------------------ -->
   <h2 id="output">Sample output</h2>
   <h3>Live run: <code>anthropic</code> / <code>claude-sonnet-5-5, exit code 0</code></h3>
-<pre><code>=== part 1a: the first process ===
+<pre><code>$ python3 demos/durability/durability.py
+
+=== part 1a: the first process ===
 session log: .odysseus/sessions/20261117-104046-setup-steps.jsonl
 user: Apply setup steps 1 to 3 in order with the apply_step tool. Each step must be applied exactly once: applying one twice breaks the setup. applied.log records every step applied so far.
 assistant: I&#x27;ll check `applied.log` first to see whether any steps have already been applied.
@@ -382,7 +384,9 @@ both deadlines in the answer                        yes                   yes</c
   <p>The scripted model decides from the conversation it is sent: after an interrupted call
      it reads <code>applied.log</code> and continues from what is there, and it answers
      from the DEADLINE lines it has read.</p>
-<pre><code>=== part 1a: the first process ===
+<pre><code>$ python3 demos/durability/durability.py --offline
+
+=== part 1a: the first process ===
 session log: .odysseus/sessions/20261117-103714-setup-steps.jsonl
 user: Apply setup steps 1 to 3 in order with the apply_step tool. Each step must be applied exactly once: applying one twice breaks the setup. applied.log records every step applied so far.
   -&gt; apply_step(number=1)

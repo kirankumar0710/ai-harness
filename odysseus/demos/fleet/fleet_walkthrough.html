@@ -109,6 +109,36 @@
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="how">How it works</h2>
+  <h3>Fleet or sub-agent?</h3>
+  <p>Both start a fresh <code>run_task()</code> with an empty conversation; the
+     <a href="../durability/durability_walkthrough.html">durability demo</a> shows the
+     sub-agent. The difference is who starts it and what it is for:</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th></th><th>Sub-agent (<code>spawn_agent</code>)</th>
+          <th>Fleet (<code>run_fleet</code>)</th></tr>
+      <tr><td>Who decides to start one</td><td><strong>the model</strong>, mid-task, by
+          calling a tool</td><td><strong>your code</strong>, before any model runs</td></tr>
+      <tr><td>Who gets the result</td><td>the parent agent, as a tool result</td>
+          <td>your code, as a <code>JobResult</code></td></tr>
+      <tr><td>Runs</td><td><strong>one at a time</strong>: the parent waits inside the
+          tool call</td><td><strong>at the same time</strong>, on a thread pool</td></tr>
+      <tr><td>Folder</td><td>the <strong>parent's</strong> folder, shared</td>
+          <td><strong>its own</strong> folder; shared folders are refused</td></tr>
+      <tr><td>Session log</td><td>none: it lives and dies inside the parent's call</td>
+          <td>one per job, so each job can be resumed</td></tr>
+      <tr><td>What it saves</td><td>the <strong>parent's context</strong> (durability
+          demo, live: largest parent request 7,091 &rarr; 1,545
+          tokens)</td><td><strong>wall-clock time</strong> (this demo, live:
+          2.8&times;)</td></tr>
+      <tr><td>Typical use</td><td>“read these six files and tell me the answer”</td>
+          <td>“build these three independent projects”</td></tr>
+    </table>
+  </div>
+  <p>A sub-agent is delegation inside one task; a fleet is many tasks run side by side by
+     plain code. If the model asks for several <code>spawn_agent</code> calls in one reply,
+     the loop runs them one after another, so only the fleet runs agents in parallel.</p>
+
   <h3>The three projects</h3>
   <p>Each project starts as a folder that holds only its test file: the tests are the spec.
      Each agent's task is the same sentence with a different module:</p>
@@ -219,15 +249,59 @@ python3 demos/fleet/fleet.py --workers 1     <span class="dim"># the same jobs, 
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="output">Sample output</h2>
-  <h3>Live run</h3>
-  <p>Not recorded yet. Run <code>python3 demos/record.py fleet</code> to add
-     <code>output/live.txt</code>.</p>
+  <h3>Live run: <code>anthropic - claude-sonnet-5-5</code></h3>
+<pre><code>$ python3 demos/fleet/fleet.py
+
+projects: slugify, roman, wordfreq (workers: 3)
+  slugify  Build slugify.py so that the tests in test_slugify.py pass. Do not change the tests.
+  roman    Build roman.py so that the tests in test_roman.py pass. Do not change the tests.
+  wordfreq Build wordfreq.py so that the tests in test_wordfreq.py pass. Do not change the tests.
+
+  1.2s [roman   ] -&gt; read_file(test_roman.py)
+  1.2s [roman   ] &lt;- 28	    unittest.main()  (28 lines)
+  1.2s [roman   ] -&gt; list_files()
+  1.2s [roman   ] &lt;- test_roman.py
+  1.3s [wordfreq] -&gt; read_file(test_wordfreq.py)
+  1.3s [wordfreq] &lt;- 22	    unittest.main()  (22 lines)
+  1.3s [wordfreq] -&gt; list_files()
+  1.3s [wordfreq] &lt;- test_wordfreq.py
+  1.8s [slugify ] -&gt; read_file(test_slugify.py)
+  1.8s [slugify ] &lt;- 21	    unittest.main()  (21 lines)
+  1.8s [slugify ] -&gt; list_files()
+  1.8s [slugify ] &lt;- test_slugify.py
+  3.5s [wordfreq] -&gt; write_file(wordfreq.py)
+  3.5s [wordfreq] &lt;- Wrote 364 chars to wordfreq.py
+  3.5s [wordfreq] -&gt; bash(python3 -m unittest -v 2&gt;&amp;1 | tail -12)
+  3.5s [slugify ] -&gt; write_file(slugify.py)
+  3.5s [slugify ] &lt;- Wrote 110 chars to slugify.py
+  3.5s [slugify ] -&gt; bash(python3 -m unittest -v 2&gt;&amp;1 | tail -8)
+  3.5s [wordfreq] &lt;- OK  (7 lines)
+  3.5s [slugify ] &lt;- OK  (6 lines)
+  4.3s [roman   ] -&gt; write_file(roman.py)
+  4.3s [roman   ] &lt;- Wrote 833 chars to roman.py
+  4.3s [roman   ] -&gt; bash(python3 -m unittest -v 2&gt;&amp;1 | tail -12)
+  4.4s [roman   ] &lt;- OK  (7 lines)
+  5.4s [slugify ] assistant: I created `slugify.py` with a `slugify(text)` function. It lowercases the text, replaces each run of
+  5.8s [wordfreq] assistant: I wrote `wordfreq.py` with a `top_words(text, n)` function, and all 4 tests in `test_wordfreq.py` pa
+  6.1s [roman   ] assistant: I created `roman.py` with `to_roman` and `from_roman`, and all 4 tests in `test_roman.py` pass. I le
+
+=== results ===
+job          agent  seconds  requests  tokens in  logged  tests (run by the demo)
+slugify         ok      5.4         3       6264       8  pass: OK
+roman           ok      6.2         3       6757       8  pass: OK
+wordfreq        ok      5.8         3       6526       8  pass: OK
+
+wall-clock time: 6.2 s; the jobs&#x27; times add up to 17.4 s (2.8x)
+projects passing: 3 of 3</code></pre>
+  <p class="dim">Full output: <a href="output/live.txt"><code>output/live.txt</code></a>.</p>
 
   <h3>Offline run (scripted model)</h3>
   <p>The scripted model reads the tests, writes a known-good module, runs the tests and
      reports. Each request waits 0.5 s to stand in for a
      real model's response time; without that there would be nothing to overlap.</p>
-<pre><code>projects: slugify, roman, wordfreq (workers: 3)
+<pre><code>$ python3 demos/fleet/fleet.py --offline
+
+projects: slugify, roman, wordfreq (workers: 3)
   slugify  Build slugify.py so that the tests in test_slugify.py pass. Do not change the tests.
   roman    Build roman.py so that the tests in test_roman.py pass. Do not change the tests.
   wordfreq Build wordfreq.py so that the tests in test_wordfreq.py pass. Do not change the tests.
@@ -266,6 +340,29 @@ projects passing: 3 of 3</code></pre>
 
   <!-- ------------------------------------------------------------------ -->
   <h2 id="analysis">Analysis</h2>
+  <h3>Live run</h3>
+  <p><span class="ok">3 of
+     3 projects pass</span>, checked by the demo after the fleet finished.
+     The run took 6.2 s of wall-clock time. Run one after another, the same jobs
+     would have taken about 17.4 s, so the fleet was 2.8 times
+     faster. The wall-clock time equals the slowest job,
+     <code>roman</code> at 6.2 s: a fleet finishes when its last job
+     does.</p>
+  <p>Each agent needed 3 requests: it read its test file and listed the
+     folder in one reply, wrote the module and ran the tests in the next, then answered.
+     All three ran the tests before saying they were done, and the demo's own run agrees.
+     Together they sent 19,547 input tokens; running them one after another would
+     have sent about the same.</p>
+  <div class="table-wrap">
+    <table>
+      <tr><th>live</th><th>agent</th><th class="num">seconds</th>
+          <th class="num">requests</th><th class="num">tokens in</th>
+          <th class="num">logged</th><th>tests, run by the demo</th></tr>
+      <tr><td><code>slugify</code></td><td>ok</td><td class="num">5.4</td><td class="num">3</td><td class="num">6264</td><td class="num">8</td><td><span class="ok">pass</span>: OK</td></tr>
+      <tr><td><code>roman</code></td><td>ok</td><td class="num">6.2</td><td class="num">3</td><td class="num">6757</td><td class="num">8</td><td><span class="ok">pass</span>: OK</td></tr>
+      <tr><td><code>wordfreq</code></td><td>ok</td><td class="num">5.8</td><td class="num">3</td><td class="num">6526</td><td class="num">8</td><td><span class="ok">pass</span>: OK</td></tr>
+    </table>
+  </div>
 
   <h3>Offline run</h3>
   <p><span class="ok">3 of 3 projects pass</span>, checked by the
@@ -274,8 +371,8 @@ projects passing: 3 of 3</code></pre>
      why: all three agents read their tests at 0.5 s, wrote their modules at 1.0 s and ran
      their tests at 1.5 s. With a fixed 0.5 s per request
      and the same four requests per job, the speed-up equals the number of workers. A live
-     run is not that even: jobs take different numbers of turns, and the slowest one sets
-     the wall-clock time.</p>
+     run is not that even: replies take different times, and the slowest job sets the
+     wall-clock time.</p>
   <div class="table-wrap">
     <table>
       <tr><th>offline</th><th>agent</th><th class="num">seconds</th>
@@ -302,8 +399,8 @@ projects passing: 3 of 3</code></pre>
   <!-- ------------------------------------------------------------------ -->
   <h2 id="next">Next steps</h2>
   <ul>
-    <li><strong>Record a live run</strong>, and one with <code>--workers 1</code>, to
-        compare wall-clock time on a real model.</li>
+    <li><strong>Record a live run with <code>--workers 1</code></strong> to measure the
+        one-at-a-time time directly, rather than adding up the jobs' times.</li>
     <li><strong>Resume a fleet</strong>: rerun only the jobs whose result is not ok, from
         their session logs.</li>
     <li><strong>Read other harnesses with <a href="../map.html">the map</a></strong>: the

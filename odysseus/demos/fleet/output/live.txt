@@ -1,0 +1,46 @@
+# fleet demo, recorded 2026-11-17, provider: anthropic - claude-sonnet-5-5, exit code 0
+
+$ python3 demos/fleet/fleet.py
+provider: anthropic - claude-sonnet-5-5
+
+projects: slugify, roman, wordfreq (workers: 3)
+  slugify  Build slugify.py so that the tests in test_slugify.py pass. Do not change the tests.
+  roman    Build roman.py so that the tests in test_roman.py pass. Do not change the tests.
+  wordfreq Build wordfreq.py so that the tests in test_wordfreq.py pass. Do not change the tests.
+
+  1.2s [roman   ] -> read_file(test_roman.py)
+  1.2s [roman   ] <- 28	    unittest.main()  (28 lines)
+  1.2s [roman   ] -> list_files()
+  1.2s [roman   ] <- test_roman.py
+  1.3s [wordfreq] -> read_file(test_wordfreq.py)
+  1.3s [wordfreq] <- 22	    unittest.main()  (22 lines)
+  1.3s [wordfreq] -> list_files()
+  1.3s [wordfreq] <- test_wordfreq.py
+  1.8s [slugify ] -> read_file(test_slugify.py)
+  1.8s [slugify ] <- 21	    unittest.main()  (21 lines)
+  1.8s [slugify ] -> list_files()
+  1.8s [slugify ] <- test_slugify.py
+  3.5s [wordfreq] -> write_file(wordfreq.py)
+  3.5s [wordfreq] <- Wrote 364 chars to wordfreq.py
+  3.5s [wordfreq] -> bash(python3 -m unittest -v 2>&1 | tail -12)
+  3.5s [slugify ] -> write_file(slugify.py)
+  3.5s [slugify ] <- Wrote 110 chars to slugify.py
+  3.5s [slugify ] -> bash(python3 -m unittest -v 2>&1 | tail -8)
+  3.5s [wordfreq] <- OK  (7 lines)
+  3.5s [slugify ] <- OK  (6 lines)
+  4.3s [roman   ] -> write_file(roman.py)
+  4.3s [roman   ] <- Wrote 833 chars to roman.py
+  4.3s [roman   ] -> bash(python3 -m unittest -v 2>&1 | tail -12)
+  4.4s [roman   ] <- OK  (7 lines)
+  5.4s [slugify ] assistant: I created `slugify.py` with a `slugify(text)` function. It lowercases the text, replaces each run of
+  5.8s [wordfreq] assistant: I wrote `wordfreq.py` with a `top_words(text, n)` function, and all 4 tests in `test_wordfreq.py` pa
+  6.1s [roman   ] assistant: I created `roman.py` with `to_roman` and `from_roman`, and all 4 tests in `test_roman.py` pass. I le
+
+=== results ===
+job          agent  seconds  requests  tokens in  logged  tests (run by the demo)
+slugify         ok      5.4         3       6264       8  pass: OK
+roman           ok      6.2         3       6757       8  pass: OK
+wordfreq        ok      5.8         3       6526       8  pass: OK
+
+wall-clock time: 6.2 s; the jobs' times add up to 17.4 s (2.8x)
+projects passing: 3 of 3
