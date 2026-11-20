@@ -221,34 +221,34 @@ odysseus
 │   ├── record.py                      run a demo and save its full output to <demo>/output/
 │   ├── run.sh                         run every demo, every mode; output to runs/ (git-ignored)
 │   ├── dice                           one tool, two tasks: the loop end to end
-│   │   ├── dice.py                    the demo script (--offline needs no API key)
-│   │   ├── output/                    complete output of every recorded run
-│   │   └── dice_walkthrough.html      goal, how to run, sample output, analysis
+│   │   ├── dice.py
+│   │   ├── output/
+│   │   └── dice_walkthrough.html
 │   ├── gate                           six core tools through every permission mode
-│   │   ├── gate.py                    the demo script (--offline needs no API key)
-│   │   ├── output/                    complete output of every recorded run
-│   │   └── gate_walkthrough.html      goal, how to run, sample output, analysis
+│   │   ├── gate.py
+│   │   ├── output/
+│   │   └── gate_walkthrough.html
 │   ├── skills                         two skills, three tasks: loaded only when relevant
-│   │   ├── skills.py                  the demo script (--offline needs no API key)
-│   │   ├── output/                    complete output of every recorded run
-│   │   ├── skills_walkthrough.html    goal, how to run, sample output, analysis
-│   │   └── example_skills/            release-note and review-migration SKILL.md files
+│   │   ├── skills.py
+│   │   ├── output/
+│   │   ├── skills_walkthrough.html
+│   │   └── example_skills/
 │   ├── memory                         one task twice: without and with AGENT_MEMORY.md
-│   │   ├── memory.py                  the demo script (--offline needs no API key)
-│   │   ├── output/                    complete output of every recorded run
-│   │   └── memory_walkthrough.html    goal, how to run, sample output, analysis
+│   │   ├── memory.py
+│   │   ├── output/
+│   │   └── memory_walkthrough.html
 │   ├── context                        one long task twice: without and with compaction
-│   │   ├── context.py                 the demo script (--offline needs no API key)
-│   │   ├── output/                    complete output of every recorded run
-│   │   └── context_walkthrough.html   goal, how to run, sample output, analysis
+│   │   ├── context.py
+│   │   ├── output/
+│   │   └── context_walkthrough.html
 │   ├── durability                     a killed process resumed from its log; a sub-agent
-│   │   ├── durability.py              the demo script (--offline needs no API key)
-│   │   ├── output/                    complete output of every recorded run
-│   │   └── durability_walkthrough.html  goal, how to run, sample output, analysis
+│   │   ├── durability.py
+│   │   ├── output/
+│   │   └── durability_walkthrough.html
 │   └── fleet                          three agents build three projects in parallel
-│       ├── fleet.py                   the demo script (--offline needs no API key)
-│       ├── output/                    complete output of every recorded run
-│       └── fleet_walkthrough.html     goal, how to run, sample output, analysis
+│       ├── fleet.py
+│       ├── output/
+│       └── fleet_walkthrough.html
 └── tests
     ├── test_harness.py                offline tests (fake transport, no network)
     ├── test_tools_security.py         tool contracts, path jail, permission gate
