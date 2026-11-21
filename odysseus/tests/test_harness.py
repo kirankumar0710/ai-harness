@@ -259,7 +259,7 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaises(ConfigError):
                 create_provider()
 
-    def test_defaults_come_from_the_packaged_ini(self):
+    def test_defaults_come_from_the_packaged_toml(self):
         defaults = base.load_vendor_defaults("gemini")
         self.assertEqual(defaults.api_key_env,
                          ("GEMINI_API_KEY", "GOOGLE_API_KEY"))
@@ -269,11 +269,11 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.model, defaults.model)
         self.assertEqual(config.base_url, defaults.base_url)
 
-    def test_user_ini_overrides_packaged_defaults_key_by_key(self):
-        with tempfile.NamedTemporaryFile("w", suffix=".ini",
+    def test_user_toml_overrides_packaged_defaults_key_by_key(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".toml",
                                          delete=False) as handle:
-            handle.write("[gemini]\nmodel = my-model\n"
-                         "api_key_env = MY_KEY\n")
+            handle.write('[gemini]\nmodel = "my-model"\n'
+                         'api_key_env = ["MY_KEY"]\n')
         self.addCleanup(os.unlink, handle.name)
         env = {"ODYSSEUS_CONFIG": handle.name, "MY_KEY": "k"}
         with mock.patch.dict(os.environ, env, clear=True):
@@ -283,12 +283,40 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.base_url,   # untouched key: packaged value
                          base.load_vendor_defaults("gemini").base_url)
 
-    def test_unreadable_user_ini_is_a_clear_error(self):
-        env = {"ODYSSEUS_CONFIG": "/no/such/file.ini",
+    def test_unreadable_user_toml_is_a_clear_error(self):
+        env = {"ODYSSEUS_CONFIG": "/no/such/file.toml",
                "GEMINI_API_KEY": "k"}
         with mock.patch.dict(os.environ, env, clear=True):
             with self.assertRaises(ConfigError):
                 GeminiConfig.from_env()
+
+    def _user_toml(self, text):
+        with tempfile.NamedTemporaryFile("w", suffix=".toml",
+                                         delete=False) as handle:
+            handle.write(text)
+        self.addCleanup(os.unlink, handle.name)
+        return {"ODYSSEUS_CONFIG": handle.name, "GEMINI_API_KEY": "k"}
+
+    def test_invalid_user_toml_is_a_clear_error(self):
+        env = self._user_toml("[gemini]\nmodel = my-model\n")  # no quotes
+        with mock.patch.dict(os.environ, env, clear=True):
+            with self.assertRaisesRegex(ConfigError, "not valid TOML"):
+                GeminiConfig.from_env()
+
+    def test_wrongly_typed_setting_is_a_clear_error(self):
+        env = self._user_toml("[gemini]\nmodel = 5\n")
+        with mock.patch.dict(os.environ, env, clear=True):
+            with self.assertRaisesRegex(ConfigError, "must be a string"):
+                GeminiConfig.from_env()
+
+    def test_user_toml_may_add_a_vendor_table(self):
+        env = self._user_toml('[mine]\nbase_url = "u"\nmodel = "m"\n'
+                              'api_key_env = "MINE_KEY"\n')
+        with mock.patch.dict(os.environ, env, clear=True):
+            defaults = base.load_vendor_defaults("mine")
+        self.assertEqual(defaults.api_key_env, ("MINE_KEY",))
+        with self.assertRaises(ConfigError):
+            base.load_vendor_defaults("nobody")
 
     def test_provider_rejects_the_wrong_config_class(self):
         with self.assertRaises(ConfigError):

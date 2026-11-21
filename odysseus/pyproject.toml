@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "odysseus-v2"
 description = "The smallest agentic harness, vendor-agnostic (Gemini, OpenAI, OpenRouter, Anthropic)."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Kiran Kumar Saravana" }]
 dependencies = []            # standard library only
 dynamic = ["version"]
@@ -23,4 +23,4 @@ version = { attr = "odysseus_v2.__version__" }
 
 [tool.setuptools.package-data]
 # Vendor defaults are read at runtime, so they must ship with the package.
-"odysseus_v2.providers" = ["providers.ini"]
+"odysseus_v2.providers" = ["providers.toml"]

@@ -22,7 +22,7 @@ point and modified to:
   neutral message format; Gemini, OpenAI, OpenRouter and Anthropic are
   supported, and adding a vendor means one new module.
 - **Move configuration out of the code:** vendor defaults (base URL, model,
-  API-key variables) live in an ini file that can be overridden, and the
+  API-key variables) live in a TOML file that can be overridden, and the
   provider must be chosen explicitly.
 - **Add offline tests and documented demos.**
 
@@ -42,7 +42,8 @@ cd odysseus          # this project's folder: pyproject.toml is here
 
 ### 2. Create a virtual environment (recommended)
 
-Requires Python 3.10 or newer.
+Requires Python 3.11 or newer (the config is read with the standard
+library's `tomllib`).
 
 ```bash
 python3 -m venv .venv
@@ -113,24 +114,24 @@ Settings are resolved in this order, highest first:
 1. Arguments passed in code, e.g. `create_provider("gemini", model="...")`
 2. The vendor's own key variable, e.g. `GEMINI_API_KEY`
 3. `ODYSSEUS_API_KEY`, `ODYSSEUS_MODEL`, `ODYSSEUS_BASE_URL`
-4. The vendor's section in an ini file
+4. The vendor's table in a TOML config file
 
 Each vendor's default base URL, model and key variable names live in
-[`src/odysseus_v2/providers/providers.ini`](src/odysseus_v2/providers/providers.ini).
-To change them without editing that file, create your own `.ini` with only
+[`src/odysseus_v2/providers/providers.toml`](src/odysseus_v2/providers/providers.toml).
+To change them without editing that file, create your own `.toml` with only
 the keys you want to change and point `ODYSSEUS_CONFIG` at it:
 
-```ini
-# ~/my-odysseus.ini
+```toml
+# ~/my-odysseus.toml
 [openai]
-model = gpt-...
+model = "gpt-..."
 ```
 
 ```bash
-export ODYSSEUS_CONFIG=~/my-odysseus.ini
+export ODYSSEUS_CONFIG=~/my-odysseus.toml
 ```
 
-API keys are never stored in the ini files; they come from environment
+API keys are never stored in the config files; they come from environment
 variables only.
 
 ## Using it in code
@@ -211,7 +212,7 @@ odysseus
 │       └── providers
 │           ├── __init__.py            create_provider() and the vendor registry
 │           ├── base.py                Provider interface, config, HTTP with retries
-│           ├── providers.ini          per-vendor defaults (base URL, model, key vars)
+│           ├── providers.toml         per-vendor defaults (base URL, model, key vars)
 │           ├── anthropic.py           Anthropic Messages API
 │           ├── gemini.py              Google Gemini API
 │           └── openai_compatible.py   OpenAI, OpenRouter and other compatible servers
@@ -285,7 +286,7 @@ Applications usually call `run_task()`, which connects them all.
 flowchart TB
     subgraph config["Configuration"]
         env["Environment variables<br/>ODYSSEUS_PROVIDER, API keys,<br/>ODYSSEUS_MODEL, ODYSSEUS_BASE_URL"]
-        ini["providers.ini<br/>+ optional ODYSSEUS_CONFIG file"]
+        toml["providers.toml<br/>+ optional ODYSSEUS_CONFIG file"]
     end
 
     subgraph project["Working directory"]
@@ -311,7 +312,7 @@ flowchart TB
     api[("Vendor API")]
 
     factory -- "reads" --> env
-    factory -- "reads defaults" --> ini
+    factory -- "reads defaults" --> toml
     factory -- "creates" --> provider
     task -- "builds" --> prompt
     prompt -- "reads" --> mem
@@ -430,7 +431,7 @@ classDiagram
     OpenAIConfig <|-- OpenRouterConfig
 
     Provider o-- ProviderConfig : config
-    ProviderConfig ..> VendorDefaults : from_env() loads from providers.ini
+    ProviderConfig ..> VendorDefaults : from_env() loads from providers.toml
 
     class create_provider {
         <<function>>

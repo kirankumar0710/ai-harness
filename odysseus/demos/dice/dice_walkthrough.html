@@ -175,7 +175,7 @@ sequenceDiagram
 
   <h3>2. Export that provider's API key</h3>
   <p>The variable name is the <code>api_key_env</code> entry for the provider in
-     <code>src/odysseus_v2/providers/providers.ini</code>. <code>ODYSSEUS_API_KEY</code> works for
+     <code>src/odysseus_v2/providers/providers.toml</code>. <code>ODYSSEUS_API_KEY</code> works for
      any provider as a fallback.</p>
   <div class="table-wrap">
     <table>
@@ -194,8 +194,8 @@ python3 demos/dice/dice.py --offline   # no provider or key needed</code></pre>
   <p>With <code>--offline</code>, a scripted model stands in: it calls the real
      <code>roll_dice</code> tool and answers from the values that come back, and replies to
      the landing-page task in text with no tool call. Steps 1 and 2 are not needed.</p>
-  <p>The base URL and model come from <code>providers.ini</code>. To use different ones,
-     point <code>ODYSSEUS_CONFIG</code> at your own <code>.ini</code> file, or set
+  <p>The base URL and model come from <code>providers.toml</code>. To use different ones,
+     point <code>ODYSSEUS_CONFIG</code> at your own <code>.toml</code> file, or set
      <code>ODYSSEUS_MODEL</code>. <code>openai</code> has no default model, so you must set
      one for it. If the provider or key is missing, the script prints which variable to set
      and exits with code 1. Each run makes three or four real API calls.</p>
@@ -332,7 +332,7 @@ I can also adapt this to React or Tailwind, add an online ordering section, or c
         checking.</li>
     <li><strong>Run with OpenAI or OpenRouter</strong> to cover the third request format.</li>
     <li><strong>Lower the output limit on purpose</strong> to see the truncation warning fire
-        on the landing page. The limit is a provider setting, not an <code>.ini</code> one:
+        on the landing page. The limit is a provider setting, not a <code>.toml</code> one:
         <code>create_provider(max_output_tokens=1000)</code>. The demo does not expose it
         yet, so this needs a one-line change or a <code>--max-output</code> flag.</li>
   </ul>

@@ -38,7 +38,7 @@ class GeminiConfig(ProviderConfig):
     the default of 1.0 for Gemini 3, and lower values can cause looping.
     """
 
-    PROVIDER_NAME = "gemini"   # defaults: [gemini] in providers.ini
+    PROVIDER_NAME = "gemini"   # defaults: [gemini] in providers.toml
 
 
 class GeminiProvider(Provider):

@@ -11,8 +11,8 @@
          export ODYSSEUS_PROVIDER=gemini   # or openai / openrouter / anthropic
 
     2. Export the API key for that provider. The variable name to use is
-       the ``api_key_env`` entry of the provider's section in
-       src/odysseus_v2/providers/providers.ini:
+       the ``api_key_env`` entry of the provider's table in
+       src/odysseus_v2/providers/providers.toml:
          gemini      GEMINI_API_KEY (or GOOGLE_API_KEY)
          openai      OPENAI_API_KEY
          openrouter  OPENROUTER_API_KEY
@@ -26,8 +26,8 @@
 See dice_walkthrough.html next to this file for the goal, a sample run and an
 analysis of its output.
 
-Base URL and model come from providers.ini; set ODYSSEUS_CONFIG to your
-own .ini to override them (openai has no default model). If the provider
+Base URL and model come from providers.toml; set ODYSSEUS_CONFIG to your
+own .toml to override them (openai has no default model). If the provider
 or its key is missing, the demo prints which variable to set and exits 1.
 
 Expected transcript: user -> assistant (tool call) -> tool result ->

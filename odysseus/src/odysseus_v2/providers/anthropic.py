@@ -32,7 +32,7 @@ class AnthropicConfig(ProviderConfig):
     max_output_tokens: int | None = 8192
     anthropic_version: str = "2023-06-01"
 
-    PROVIDER_NAME = "anthropic"   # defaults: [anthropic] in providers.ini
+    PROVIDER_NAME = "anthropic"   # defaults: [anthropic] in providers.toml
 
 
 class AnthropicProvider(Provider):

@@ -7,7 +7,7 @@ contract once, independent of any vendor:
 * ``ProviderConfig`` - the settings every vendor needs (API key, base
   URL, model) plus shared tuning knobs. Each vendor subclasses it; its
   default base URL, model and key variable names come from that
-  vendor's section in ``providers.ini``.
+  vendor's table in ``providers.toml``.
 * ``Provider`` - an abstract base class. ``complete()`` is a template
   method: subclasses only translate the neutral request into their wire
   format and parse the reply back. Authentication headers, retries and
@@ -26,11 +26,11 @@ Design rules:
 
 from __future__ import annotations
 
-import configparser
 import json
 import os
 import random
 import time
+import tomllib
 import urllib.error
 import urllib.request
 import uuid
@@ -139,45 +139,82 @@ class ProviderError(RuntimeError):
 # --------------------------------------------------------------------------
 
 
-DEFAULTS_FILE = Path(__file__).with_name("providers.ini")
+DEFAULTS_FILE = Path(__file__).with_name("providers.toml")
 CONFIG_PATH_ENV_VAR = "ODYSSEUS_CONFIG"
 
 
 @dataclass(frozen=True)
 class VendorDefaults:
-    """One vendor's section of the ini files."""
+    """One vendor's table of the config files."""
 
     base_url: str
     model: str
     api_key_env: tuple[str, ...]
 
 
-def load_vendor_defaults(provider_name: str) -> VendorDefaults:
-    """Read a vendor's defaults from the ini files.
+def _read_toml(path: str | Path, what: str) -> dict:
+    """Parse one TOML config file, turning failures into ConfigError."""
+    try:
+        with open(path, "rb") as handle:
+            return tomllib.load(handle)
+    except OSError as exc:
+        raise ConfigError(f"{what} is unreadable: {path} ({exc})") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(
+            f"{what} is not valid TOML: {path} ({exc})") from exc
 
-    The packaged ``providers.ini`` is read first; the file named by
+
+def _vendor_table(data: dict, provider_name: str, path: str | Path) -> dict:
+    """Return ``[provider_name]`` from a parsed file ({} if absent)."""
+    table = data.get(provider_name, {})
+    if not isinstance(table, dict):
+        raise ConfigError(f"{path}: [{provider_name}] must be a table")
+    return table
+
+
+def _string_setting(table: dict, key: str, provider_name: str) -> str:
+    value = table.get(key, "")
+    if not isinstance(value, str):
+        raise ConfigError(f"[{provider_name}] {key} must be a string")
+    return value.strip()
+
+
+def _key_vars_setting(table: dict, provider_name: str) -> tuple[str, ...]:
+    value = table.get("api_key_env", [])
+    if isinstance(value, str):      # a single name is accepted too
+        value = [value]
+    if (not isinstance(value, list)
+            or not all(isinstance(name, str) for name in value)):
+        raise ConfigError(
+            f"[{provider_name}] api_key_env must be a list of strings")
+    return tuple(name.strip() for name in value if name.strip())
+
+
+def load_vendor_defaults(provider_name: str) -> VendorDefaults:
+    """Read a vendor's defaults from the TOML config files.
+
+    The packaged ``providers.toml`` is read first; the file named by
     ``ODYSSEUS_CONFIG``, if set, is layered on top and overrides it key
     by key. The files are re-read on every call, so edits take effect
     without restarting.
     """
-    parser = configparser.ConfigParser()
-    if not parser.read(DEFAULTS_FILE, encoding="utf-8"):
+    if not DEFAULTS_FILE.is_file():
         raise ConfigError(f"Missing provider defaults file: {DEFAULTS_FILE}")
+    packaged = _read_toml(DEFAULTS_FILE, "Provider defaults file")
+    found = provider_name in packaged
+    table = dict(_vendor_table(packaged, provider_name, DEFAULTS_FILE))
     user_file = os.environ.get(CONFIG_PATH_ENV_VAR)
-    if user_file and not parser.read(user_file, encoding="utf-8"):
+    if user_file:
+        user = _read_toml(user_file, f"{CONFIG_PATH_ENV_VAR} file")
+        found = found or provider_name in user
+        table.update(_vendor_table(user, provider_name, user_file))
+    if not found:
         raise ConfigError(
-            f"{CONFIG_PATH_ENV_VAR} points to an unreadable file: "
-            f"{user_file}")
-    if not parser.has_section(provider_name):
-        raise ConfigError(
-            f"No [{provider_name}] section in the provider config files")
-    section = parser[provider_name]
+            f"No [{provider_name}] table in the provider config files")
     return VendorDefaults(
-        base_url=section.get("base_url", "").strip(),
-        model=section.get("model", "").strip(),
-        api_key_env=tuple(
-            name.strip() for name in section.get("api_key_env", "").split(",")
-            if name.strip()),
+        base_url=_string_setting(table, "base_url", provider_name),
+        model=_string_setting(table, "model", provider_name),
+        api_key_env=_key_vars_setting(table, provider_name),
     )
 
 
@@ -198,7 +235,7 @@ class ProviderConfig:
     max_output_tokens: int | None = None
     extra_headers: dict[str, str] = field(default_factory=dict)
 
-    # The vendor's section name in providers.ini; everything else about
+    # The vendor's table name in providers.toml; everything else about
     # the vendor's defaults lives in that file, not in code.
     PROVIDER_NAME: ClassVar[str] = ""
 

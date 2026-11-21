@@ -41,7 +41,7 @@ class OpenAIConfig(ProviderConfig):
 
     max_tokens_field: str = "max_completion_tokens"
 
-    PROVIDER_NAME = "openai"   # defaults: [openai] in providers.ini
+    PROVIDER_NAME = "openai"   # defaults: [openai] in providers.toml
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ class OpenRouterConfig(OpenAIConfig):
     extra_headers: dict[str, str] = field(
         default_factory=lambda: {"X-Title": "Odysseus"})
 
-    PROVIDER_NAME = "openrouter"   # defaults: [openrouter] in providers.ini
+    PROVIDER_NAME = "openrouter"   # defaults: [openrouter] in providers.toml
 
 
 class OpenAICompatibleProvider(Provider):
